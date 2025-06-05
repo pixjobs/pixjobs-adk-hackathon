@@ -1,0 +1,17 @@
+# Core ADK framework
+google-adk
+
+# Google Cloud (for secrets, optional file storage, and possibly Vertex AI)
+google-cloud-secret-manager
+google-cloud-storage
+
+# PDF/Word file parsing for CVs
+pdfplumber  # For PDF
+python-docx  # For .docx files
+
+# Pinecone for semantic search
+pinecone-client
+
+# Web framework (included in ADK Web)
+fastapi
+uvicorn
