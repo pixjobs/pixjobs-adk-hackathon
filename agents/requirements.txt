@@ -10,7 +10,7 @@ pdfplumber  # For PDF
 python-docx  # For .docx files
 
 # Pinecone for semantic search
-pinecone-client
+pinecone
 
 # Web framework (included in ADK Web)
 fastapi
