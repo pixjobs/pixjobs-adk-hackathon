@@ -35,7 +35,7 @@ def load_env(project_id: str = "workmatch-hackathon", secret_map: dict = None):
             print(f"[env] Warning: Failed to load {env_var} from {secret_name}: {e}")
 
 
-def get_model(default="gemini-2.5-pro-preview-05-06") -> str:
+def get_model(default="gemini-2.0-flash") -> str:
     """
     Get model name from env, fallback to default.
     """
