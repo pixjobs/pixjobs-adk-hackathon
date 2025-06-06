@@ -35,3 +35,6 @@ build/
 # Allow .env files (commented to clarify intention)
 # !.env
 # !.env.local
+
+# ADK / eval sets
+*.evalset.json
