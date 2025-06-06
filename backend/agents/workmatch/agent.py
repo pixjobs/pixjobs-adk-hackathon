@@ -5,8 +5,11 @@ from google.adk.tools.agent_tool import AgentTool
 from . import prompt
 from .sub_agents.profile_create import profile_create_agent
 from .sub_agents.contact_block_create import contact_block_create_agent
+from utils.env import load_env, get_model
 
-MODEL = "gemini-2.0-flash" 
+load_env()
+
+MODEL = get_model()
 
 workmatch_coordinator = Agent(
     name = "workmatch_coordinator",
