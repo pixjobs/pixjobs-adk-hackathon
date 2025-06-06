@@ -3,7 +3,7 @@ from . import prompt
 
 MODEL = "gemini-2.5-pro-preview-05-06"
 
-contact_block__create_agent = Agent(
+contact_block_create_agent = Agent(
     model=MODEL,
     name="contact_block_agent",
     instruction=prompt.CONTACT_BLOCK_PROMPT,

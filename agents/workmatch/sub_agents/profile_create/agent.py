@@ -1,7 +1,7 @@
 from google.adk import Agent
 from . import prompt
 
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-2.5-pro-preview-05-06"
 
 profile_create_agent = Agent(
     model=MODEL,

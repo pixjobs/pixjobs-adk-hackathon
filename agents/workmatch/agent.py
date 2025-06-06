@@ -4,6 +4,7 @@ from google.adk.agents import Agent
 from google.adk.tools.agent_tool import AgentTool
 from . import prompt
 from .sub_agents.profile_create import profile_create_agent
+from .sub_agents.contact_block_create import contact_block_create_agent
 
 MODEL = "gemini-2.0-flash" 
 
@@ -14,6 +15,7 @@ workmatch_coordinator = Agent(
     instruction=prompt.WORKMATCH_ROOT_PROMPT,
     tools=[
         AgentTool(agent=profile_create_agent),
+        AgentTool(agent=contact_block_create_agent),
     ],
 )
 
