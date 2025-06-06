@@ -15,3 +15,7 @@ pinecone
 # Web framework (included in ADK Web)
 fastapi
 uvicorn
+
+# Telemetry
+
+langfuse
