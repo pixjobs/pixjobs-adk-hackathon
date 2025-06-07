@@ -1,9 +1,9 @@
 import logging
 import os
-from typing import List, Dict, Union
+from typing import List, Union, Optional
 
 from google.adk.agents import Agent
-from google.adk.tools.agent_tool import AgentTool, ToolParameter
+from google.adk.tools import FunctionTool
 
 from utils.env import get_model
 from .prompt import CAREER_GUIDANCE_PROMPT
@@ -24,40 +24,48 @@ MODEL_INSTANCE = get_model()
 def _get_talent_client_and_parent() -> Union[tuple[talent.JobServiceClient, str], tuple[None, None]]:
     if not talent_solution_available or not GCP_PROJECT_ID:
         return None, None
-    client = talent.JobServiceClient()
-    parent = f"projects/{GCP_PROJECT_ID}"
-    return client, parent
+    try:
+        client = talent.JobServiceClient()
+        parent = f"projects/{GCP_PROJECT_ID}"
+        return client, parent
+    except Exception as e:
+        logger.error(f"[TalentAPI] Failed to initialize JobServiceClient: {e}", exc_info=True)
+        return None, None
 
 def _create_request_metadata(tool_name: str) -> Union[talent.types.RequestMetadata, None]:
     if not talent_solution_available: return None
     return talent.types.RequestMetadata(
         domain="workmatch-career-guidance",
-        session_id=f"adk_session_{tool_name}", # Simple session ID per tool
-        user_id="adk_user_guidance" # Generic user ID
+        session_id=f"adk_session_{tool_name}",
+        user_id="adk_user_guidance"
     )
 
-def explore_career_fields_function(keywords: str, location: str = None) -> Dict:
+def explore_career_fields_function(keywords: str, location: str = "") -> dict:
+    """
+    Suggests potential job titles or career fields based on keywords and an optional location.
+    Use this to brainstorm roles related to user's interests or skills.
+
+    Args:
+        keywords (str): Keywords related to interests, skills, or desired job aspects.
+        location (Optional[str], optional): A specific city, state, or country. Defaults to None.
+
+    Returns:
+        Dict: A dictionary containing suggested job titles or an error/message.
+    """
     client, parent = _get_talent_client_and_parent()
     if not client:
         return {"error": "Talent Solution client not available or GCP_PROJECT_ID missing."}
-
     try:
         request_metadata = _create_request_metadata("explore_fields")
         job_query = talent.types.JobQuery(query=keywords)
         if location:
             job_query.location_filters.append(talent.types.LocationFilter(address=location))
-
         histogram_queries = [talent.types.HistogramQuery(histogram_query="JOB_TITLE")]
         request = talent.types.SearchJobsRequest(
-            parent=parent,
-            request_metadata=request_metadata,
-            job_query=job_query,
-            histogram_queries=histogram_queries,
-            job_view=talent.types.JobView.JOB_VIEW_ID_ONLY,
-            page_size=1
+            parent=parent, request_metadata=request_metadata, job_query=job_query,
+            histogram_queries=histogram_queries, job_view=talent.types.JobView.JOB_VIEW_ID_ONLY, page_size=1
         )
         response = client.search_jobs(request=request)
-        
         suggested_titles = []
         for histogram_result in response.histogram_query_results:
             if histogram_result.histogram == "JOB_TITLE":
@@ -66,9 +74,7 @@ def explore_career_fields_function(keywords: str, location: str = None) -> Dict:
                         clean_title = title.replace("(Remote)", "").replace("- Remote", "").strip()
                         if clean_title and clean_title not in suggested_titles:
                              suggested_titles.append(clean_title)
-        
-        if not suggested_titles and len(keywords.split()) <= 4: # Refined fallback condition
-            logger.info(f"[explore_career_fields] Fallback search for keywords: '{keywords}'")
+        if not suggested_titles and len(keywords.split()) <= 4:
             request.job_view = talent.types.JobView.JOB_VIEW_SMALL
             request.page_size = 10 
             request.histogram_queries = []
@@ -79,81 +85,60 @@ def explore_career_fields_function(keywords: str, location: str = None) -> Dict:
                     if clean_title and clean_title not in suggested_titles:
                         suggested_titles.append(clean_title)
                 else: break
-        
         if not suggested_titles:
             return {"message": "Could not identify distinct career fields. Try different keywords."}
         return {"suggested_job_titles": suggested_titles}
     except Exception as e:
-        logger.error(f"[explore_career_fields_function] API Error: {str(e)}", exc_info=True) # exc_info=True for better debugging
+        logger.error(f"[explore_career_fields_function] API Error: {str(e)}", exc_info=True)
         return {"error": "An error occurred while exploring career fields."}
 
-def get_job_role_descriptions_function(job_title: str, location: str = None) -> Dict:
+def get_job_role_descriptions_function(job_title: str, location: str = "") -> dict:
+    """
+    Fetches example job descriptions for a specific job title and optional location.
+    The agent can then summarize insights from these descriptions.
+
+    Args:
+        job_title (str): The specific job title to get details for.
+        location (Optional[str], optional): A specific city, state, or country. Defaults to None.
+
+    Returns:
+        Dict: A dictionary containing job description examples or an error/message.
+    """
     client, parent = _get_talent_client_and_parent()
     if not client:
         return {"error": "Talent Solution client not available or GCP_PROJECT_ID missing."}
-
     try:
         request_metadata = _create_request_metadata("get_descriptions")
         job_query = talent.types.JobQuery(query=f'title:"{job_title}"')
         if location:
             job_query.location_filters.append(talent.types.LocationFilter(address=location))
-
         request = talent.types.SearchJobsRequest(
-            parent=parent,
-            request_metadata=request_metadata,
-            job_query=job_query,
-            job_view=talent.types.JobView.JOB_VIEW_FULL,
-            page_size=2
+            parent=parent, request_metadata=request_metadata, job_query=job_query,
+            job_view=talent.types.JobView.JOB_VIEW_FULL, page_size=2
         )
         response = client.search_jobs(request=request)
-
         if not response.matching_jobs:
             return {"message": f"No job postings found for '{job_title}'. Try a broader title or location."}
-
-        descriptions_for_synthesis = []
+        descriptions = []
         for item in response.matching_jobs:
             job = item.job
             desc_for_llm = job.description[:3500] if job.description else "No description provided."
             primary_location = job.addresses[0] if job.addresses and job.addresses[0] else "N/A"
-            
             company_name_str = "N/A"
-            if job.company_display_name:
-                company_name_str = job.company_display_name
-            elif job.company_name: # company_name is a resource path like projects/.../companies/...
-                company_name_str = job.company_name.split('/')[-1]
-
-
-            descriptions_for_synthesis.append({
-                "title": job.title,
-                "company": company_name_str,
-                "location_display": primary_location,
+            if job.company_display_name: company_name_str = job.company_display_name
+            elif job.company_name: company_name_str = job.company_name.split('/')[-1]
+            descriptions.append({
+                "title": job.title, "company": company_name_str, "location_display": primary_location,
                 "description_for_synthesis": desc_for_llm,
                 "job_link": job.application_info.uris[0] if job.application_info and job.application_info.uris else "N/A"
             })
-        return {"job_description_examples": descriptions_for_synthesis}
+        return {"job_description_examples": descriptions}
     except Exception as e:
-        logger.error(f"[get_job_role_descriptions_function] API Error: {str(e)}", exc_info=True) # exc_info=True
-        return {"error": "An error occurred while fetching job role descriptions."}
+        logger.error(f"[get_job_role_descriptions_function] API Error: {str(e)}", exc_info=True)
+        return {"error": "Error fetching job role descriptions."}
 
-explore_fields_tool = AgentTool(
-    name="explore_career_fields",
-    description="Suggests a list of potential job titles or career fields based on user-provided keywords (like interests or skills) and an optional location. Useful for brainstorming initial career ideas.",
-    fn=explore_career_fields_function,
-    params=[
-        ToolParameter(name="keywords", description="A string of keywords related to the user's interests, skills, or desired job aspects (e.g., 'creative writing content marketing', 'python data analysis machine learning').", typ=str),
-        ToolParameter(name="location", description="Optional. A specific city, state, or country to help narrow the career field suggestions (e.g., 'London, UK', 'California', 'Germany').", typ=str, required=False)
-    ]
-)
-
-get_role_details_tool = AgentTool(
-    name="get_job_role_descriptions",
-    description="Fetches 1-2 example job descriptions for a specific job title and optional location. The agent should then use its own understanding to summarize common skills, responsibilities, and any mentioned salary ranges or experience levels from these examples.",
-    fn=get_job_role_descriptions_function,
-    params=[
-        ToolParameter(name="job_title", description="The specific job title to get example descriptions for (e.g., 'Software Engineer', 'UX Designer', 'Product Marketing Manager').", typ=str),
-        ToolParameter(name="location", description="Optional. A specific city, state, or country for which to find example job descriptions (e.g., 'New York', 'Remote', 'Canada').", typ=str, required=False)
-    ]
-)
+explore_fields_tool = FunctionTool(func=explore_career_fields_function)
+get_role_details_tool = FunctionTool(func=get_job_role_descriptions_function)
 
 career_guidance_agent = Agent(
     name="career_guidance_agent",
