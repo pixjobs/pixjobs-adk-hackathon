@@ -19,3 +19,11 @@ uvicorn
 # Telemetry
 
 langfuse
+
+#GCP Cloud Talent
+
+google-cloud-talent
+
+# Google Maps API
+
+googlemaps
