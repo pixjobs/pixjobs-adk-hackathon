@@ -1,34 +1,40 @@
-from typing import List, Dict, Any, Callable, Optional
+import logging
+import hashlib
+from datetime import datetime, timezone
+from typing import List, Dict, Any
+
 from google.cloud import firestore
 from vertexai.language_models import TextEmbeddingModel
-import hashlib
-import logging
-import numpy as np
-from datetime import datetime, timezone
 
-# --- Setup ---
+# --- Module-level Setup ---
+
+# Setup logging to get clear output on the module's operations
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+# Initialize Google Cloud clients once to be reused throughout the application
 db = firestore.Client()
-# CORRECTED: Using the specified embedding model 'text-embedding-005'
 embedding_model = TextEmbeddingModel.from_pretrained("text-embedding-005")
 
-# --- Helper Dictionaries ---
+# Define a centralized map for country codes to their currency for accurate data storage
 COUNTRY_CURRENCY_MAP = {
     "gb": "GBP",
     "us": "USD",
-    "ca": "CAD",
-    "au": "AUD",
     "de": "EUR",
     "fr": "EUR",
+    "ca": "CAD",
+    "au": "AUD",
+    "in": "INR",
     # Add other countries as needed
 }
 
-# --- Core Functions ---
+# --- Core Helper Functions ---
 
 def compute_embedding(text: str) -> List[float]:
-    """Generate embedding for input text, with error handling."""
+    """
+    Generates a 768-dimension embedding for a given text using a Vertex AI model.
+    Handles errors and invalid input gracefully.
+    """
     if not text or not isinstance(text, str):
         logger.warning("[embedding] Received empty or invalid text for embedding.")
         return []
@@ -39,32 +45,34 @@ def compute_embedding(text: str) -> List[float]:
         logger.error(f"[embedding] Failed to embed text: {e}", exc_info=True)
         return []
 
+
 def hash_string(text: str) -> str:
-    """Create a SHA256 hash for consistent IDs when a primary ID is not available."""
+    """Creates a stable SHA256 hash for a given string to use as a consistent ID."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-def upsert_jobs_bulk(
+
+def upsert_jobs_metadata_bulk(
     collection: str,
     jobs: List[Dict[str, Any]],
     country_code: str = "gb"
 ):
     """
-    Batch embed and upsert job listings with robust, intelligent deduplication.
+    Batch upserts job metadata into Firestore with robust, intelligent deduplication.
 
-    This version normalizes location data to create a more reliable canonical ID,
-    preventing duplicates from minor variations in API data.
+    This function creates a canonical ID for each job based on its title, company,
+    and normalized location. It then modifies the input 'jobs' list in-place by
+    adding this 'canonical_id' to each job dictionary, making it available to the caller.
+    This function does NOT handle vector embeddings.
     """
     batch = db.batch()
     upserted_count = 0
     skipped_count = 0
     processed_ids_in_batch = set()
-    
+
     currency = COUNTRY_CURRENCY_MAP.get(country_code.lower(), "N/A")
 
     for job in jobs:
-        # --- ROBUST CANONICAL ID LOGIC ---
-        
-        # 1. Extract and normalize core components
+        # Create a canonical ID from core attributes for stable deduplication
         title = job.get("title", "").strip().lower()
         company_name = job.get("company", {}).get("display_name", "").strip().lower()
         location_name = job.get("location", {}).get("display_name", "").strip().lower()
@@ -73,54 +81,36 @@ def upsert_jobs_bulk(
             skipped_count += 1
             continue
 
-        # 2. **Smarter Location Normalization:** Take only the first part of the location
-        # This turns "woodditton, newmarket" into "woodditton" and "london, greater london" into "london".
-        # This is the key change to handle location variations.
+        # Normalize location to handle minor API variations (e.g., "London, UK" vs "London")
         normalized_location = location_name.split(',')[0].strip()
-
-        # 3. Create the stable, composite key and hash it
         composite_key = f"{title}|{company_name}|{normalized_location}"
         doc_id = hash_string(composite_key)
-        
-        # Optional: Log the key for debugging to see what's being generated
-        logger.debug(f"Generated composite key: '{composite_key}' -> doc_id: {doc_id}")
 
+        # Skip processing if we've already handled this unique job in this batch
         if doc_id in processed_ids_in_batch:
-            # We have already processed this exact job in this batch, so skip it.
             continue
         processed_ids_in_batch.add(doc_id)
 
-        # --- Data Preparation ---
-        full_description = job.get("description", "")
-        if not full_description:
-            skipped_count += 1
-            continue
-
-        vector = compute_embedding(full_description)
-        if not vector:
-            logger.warning(f"Skipping job {doc_id} due to embedding failure.")
-            skipped_count += 1
-            continue
+        # IMPORTANT: Add the generated ID to the job dict for the agent to use with Pinecone
+        job['canonical_id'] = doc_id
 
         doc_ref = db.collection(collection).document(doc_id)
 
-        # We choose the current job's data to be the version we save.
-        # The `merge=True` will handle overwriting if this doc_id was from a previous run.
+        # Prepare the metadata document, excluding the vector embedding
         doc_data = {
             "source": "adzuna",
             "source_id": job.get("id"),
             "title": job.get("title"),
-            "company": { "name": job.get("company", {}).get("display_name") },
-            "location": { "raw_text": job.get("location", {}).get("display_name") },
+            "company": {"name": job.get("company", {}).get("display_name")},
+            "location": {"raw_text": job.get("location", {}).get("display_name")},
             "salary": {
                 "min": job.get("salary_min"),
                 "max": job.get("salary_max"),
                 "currency": currency,
                 "is_predicted": job.get("salary_is_predicted", False),
             },
-            "description": full_description,
-            "description_snippet": full_description[:400],
-            "embedding": vector,
+            "description": job.get("description", ""),
+            "description_snippet": job.get("description", "")[:400],
             "url": job.get("redirect_url"),
             "category": {
                 "tag": job.get("category", {}).get("tag"),
@@ -129,52 +119,38 @@ def upsert_jobs_bulk(
             "created_at_source_utc": job.get("created"),
             "processed_at_utc": datetime.now(timezone.utc)
         }
-        
+
+        # Use merge=True to create the document or update it if it already exists
         batch.set(doc_ref, doc_data, merge=True)
         upserted_count += 1
 
     if upserted_count > 0:
         batch.commit()
-    
+
     logger.info(
-        f"[firestore] Processed batch. Upserted: {upserted_count}. Skipped: {skipped_count}. "
-        f"Unique jobs in batch: {len(processed_ids_in_batch)}."
+        f"[firestore] Upserted metadata for {upserted_count} records to '{collection}'. "
+        f"Skipped {skipped_count}."
     )
 
 
-def query_similar_jobs(query: str, collection: str, top_k: int = 5) -> list:
+def get_jobs_by_ids(collection: str, ids: List[str]) -> List[Dict[str, Any]]:
     """
-    Finds documents in a Firestore collection with embeddings similar to the query's embedding.
-
-    *** CRITICAL SCALING WARNING ***
-    This function fetches ALL documents from the collection and performs calculations in memory.
-    This is INEFFICIENT and EXPENSIVE for large collections. It is suitable for prototypes ONLY.
-    For production, you MUST use a dedicated vector database like Vertex AI Vector Search.
+    Fetches multiple documents from Firestore based on a list of document IDs.
+    This is the retrieval step for the RAG workflow after getting IDs from Pinecone.
     """
-    logger.info(f"Performing a low-efficiency similarity scan on '{collection}' for query: '{query}'")
-    
-    try:
-        # Note: This re-initializes the model. For higher performance, you could pass the model object in.
-        model = TextEmbeddingModel.from_pretrained("text-embedding-005")
-        query_embedding = model.get_embeddings([query])[0].values
-        if not query_embedding:
-            logger.error("Could not generate embedding for query.")
-            return []
-
-        docs = db.collection(collection).stream()
-        scored_docs = []
-
-        for doc in docs:
-            data = doc.to_dict()
-            doc_embedding = data.get("embedding")
-            if doc_embedding and isinstance(doc_embedding, list):
-                similarity = np.dot(query_embedding, doc_embedding) / (np.linalg.norm(query_embedding) * np.linalg.norm(doc_embedding))
-                scored_docs.append((similarity, data))
-
-        scored_docs.sort(key=lambda x: x[0], reverse=True)
-        
-        return [match[1] for match in scored_docs[:top_k]]
-
-    except Exception as e:
-        logger.error(f"Failed during similarity query: {e}", exc_info=True)
+    if not ids:
         return []
+
+    logger.info(f"[firestore] Retrieving {len(ids)} documents from '{collection}'.")
+    docs = []
+    for doc_id in ids:
+        try:
+            doc_ref = db.collection(collection).document(doc_id)
+            doc = doc_ref.get()
+            if doc.exists:
+                docs.append(doc.to_dict())
+            else:
+                logger.warning(f"[firestore] Document with ID '{doc_id}' not found.")
+        except Exception as e:
+            logger.error(f"[firestore] Failed to retrieve doc '{doc_id}': {e}", exc_info=True)
+    return docs
