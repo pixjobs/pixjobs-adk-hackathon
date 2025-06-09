@@ -1,6 +1,7 @@
 import os
 import logging
 import requests
+import asyncio # Import asyncio to use its features
 from typing import List, Dict, Any, Optional
 
 # --- Local Imports ---
@@ -29,16 +30,15 @@ if not logger.handlers:
     h.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(h)
 
-print("--- career_guidance_agent module loaded (Pinecone + Firestore version) ---")
+print("--- career_guidance_agent module loaded (v4: Async-aware) ---")
 
-# --- Adzuna API Client ---
+# --- Adzuna API Client (No changes needed) ---
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
 ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs"
-if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
-    logger.warning("Missing Adzuna credentials; job searches will fail.")
 
 class AdzunaAPI:
+    # ... (class implementation remains the same)
     def __init__(self, app_id: str, app_key: str):
         if not app_id or not app_key:
             raise ValueError("Adzuna App ID and Key are required.")
@@ -59,7 +59,8 @@ class AdzunaAPI:
     def search_jobs(
         self, what: str, country: str = "gb", results: int = 10,
         salary_min: Optional[int] = None, location: Optional[str] = None,
-        category: Optional[str] = None, what_or: Optional[str] = None
+        category: Optional[str] = None, what_or: Optional[str] = None,
+        employment_type: Optional[str] = None
     ) -> dict:
         url = f"{ADZUNA_BASE_URL}/{country}/search/1"
         params = {"what": what, "results_per_page": results}
@@ -67,70 +68,70 @@ class AdzunaAPI:
         if salary_min: params["salary_min"] = salary_min
         if location:   params["where"] = location
         if category:   params["category"] = category
+        if employment_type in ['permanent', 'contract']:
+            params["contract_type"] = employment_type
         return self._get(url, params)
 
 adzuna_api = AdzunaAPI(ADZUNA_APP_ID, ADZUNA_APP_KEY)
 
-# --- Pinecone Index Setup ---
+# --- Pinecone & Configuration (No changes needed) ---
 pinecone_job_index = get_index("job-postings")
-
-# --- Country-Specific Configuration ---
 HIGH_PAYING_THRESHOLDS = {
     "gb": 50000, "us": 85000, "de": 65000, "fr": 60000,
     "ca": 80000, "au": 90000, "in": 1500000,
 }
 DEFAULT_HIGH_PAYING_THRESHOLD = 50000
-
-# CORRECTED: This map was missing from the agent file.
 COUNTRY_CURRENCY_MAP = {
     "gb": "GBP", "us": "USD", "de": "EUR", "fr": "EUR",
     "ca": "CAD", "au": "AUD", "in": "INR",
 }
 
-# --- Helper Functions ---
-
+# --- Helper Functions (No changes needed, but _expand_job_title is now called with await) ---
 def _format_salary(salary_data: Any) -> str:
-    """Formats salary consistently from a dictionary map."""
-    if not isinstance(salary_data, dict):
-        return "Not listed"
-    
-    salary_min = salary_data.get('min')
-    salary_max = salary_data.get('max')
-    currency = salary_data.get('currency', 'N/A')
-    
-    if salary_max and salary_min and salary_max != salary_min:
-        return f"{currency} {salary_min:,.0f} - {salary_max:,.0f}"
-    
+    if not isinstance(salary_data, dict): return "Not listed"
+    salary_min, salary_max, currency = salary_data.get('min'), salary_data.get('max'), salary_data.get('currency', 'N/A')
+    if salary_max and salary_min and salary_max != salary_min: return f"{currency} {salary_min:,.0f} - {salary_max:,.0f}"
     value = salary_max or salary_min
     return f"{currency} {value:,.0f}" if value else "Not listed"
 
+def _format_employment_type(job: Dict[str, Any]) -> str:
+    contract_type = job.get('contract_type', '').capitalize()
+    contract_time = job.get('contract_time', '').replace('_', ' ').capitalize()
+    if contract_type and contract_time: return f"{contract_type}, {contract_time}"
+    return contract_type or contract_time or "N/A"
+
+async def _expand_job_title(job_title: str) -> str:
+    logger.info(f"Expanding job title: '{job_title}'")
+    try:
+        prompt = f"List up to 4 alternative or synonymous job titles for '{job_title}'. Do not use the original title. Return only a comma-separated list. Example: UI Engineer, Web Developer, Frontend Engineer"
+        response = await MODEL_INSTANCE.generate_content_async(prompt)
+        synonyms = [s.strip() for s in response.text.split(',') if s.strip()]
+        return " OR ".join(synonyms)
+    except Exception as e:
+        logger.error(f"Failed to expand job title with LLM: {e}")
+        return ""
+
 def _ingest_jobs_data(jobs: List[Dict[str, Any]], country_code: str):
-    """Orchestrates writing job data to both Firestore (metadata) and Pinecone (vectors)."""
-    if not jobs:
-        return
-
+    if not jobs: return
     upsert_jobs_metadata_bulk("job-postings", jobs, country_code=country_code)
-
     vectors_to_upsert = []
     for job in jobs:
         doc_id = job.get('canonical_id')
-        if not doc_id:
-            continue
-        
-        description = job.get("description", "")
-        embedding = compute_embedding(description)
+        if not doc_id: continue
+        embedding = compute_embedding(job.get("description", ""))
         if embedding:
             vectors_to_upsert.append((doc_id, embedding, {"title": job.get("title", "")}))
-
     upsert_vectors(pinecone_job_index, vectors_to_upsert)
 
 # --- Agent Tools ---
 
-def explore_career_fields_function(
+# CORRECTED: All tool functions are now `async def`
+async def explore_career_fields_function(
     keywords: str, country_code: str = "gb",
-    location: Optional[str] = None, salary_min: Optional[int] = None
+    location: Optional[str] = None, salary_min: Optional[int] = None,
+    employment_type: Optional[str] = None
 ) -> dict:
-    logger.info(f"[Tool] explore_career_fields('{keywords}', country='{country_code}', location='{location}')")
+    logger.info(f"[Tool] explore_career_fields('{keywords}', type='{employment_type}')")
     
     terms = [t.strip() for t in keywords.split() if t.strip()]
     what = " ".join(terms)
@@ -142,7 +143,8 @@ def explore_career_fields_function(
         current_salary_min = max(current_salary_min or 0, threshold)
 
     jobs = adzuna_api.search_jobs(
-        what=what, what_or=what_or, country=country_code, location=location, salary_min=current_salary_min
+        what=what, what_or=what_or, country=country_code, location=location,
+        salary_min=current_salary_min, employment_type=employment_type
     ).get("results", [])
 
     if not jobs:
@@ -152,13 +154,16 @@ def explore_career_fields_function(
     titles = list(dict.fromkeys([j["title"].strip() for j in jobs if j.get("title")]))
     return {"suggested_job_titles": titles[:5]}
 
-def get_job_role_descriptions_function(
+async def get_job_role_descriptions_function(
     job_title: str, country_code: str = "gb",
-    location: Optional[str] = None, salary_min: Optional[int] = None
+    location: Optional[str] = None, salary_min: Optional[int] = None,
+    employment_type: Optional[str] = None
 ) -> dict:
-    logger.info(f"[Tool] get_job_role_descriptions('{job_title}', country='{country_code}', location='{location}')")
+    logger.info(f"[Tool] get_job_role_descriptions('{job_title}', type='{employment_type}')")
     
-    what = " ".join([t.strip() for t in job_title.split() if t.strip()])
+    # CORRECTED: Use `await` instead of `asyncio.run()`
+    what_or_query = await _expand_job_title(job_title)
+    what_query = " ".join([t.strip() for t in job_title.split() if t.strip()])
     
     current_salary_min = salary_min
     if "high paying" in job_title.lower():
@@ -166,32 +171,28 @@ def get_job_role_descriptions_function(
         current_salary_min = max(current_salary_min or 0, threshold)
         
     jobs = adzuna_api.search_jobs(
-        what=what, country=country_code, location=location, salary_min=current_salary_min
+        what=what_query, what_or=what_or_query, country=country_code, location=location,
+        salary_min=current_salary_min, employment_type=employment_type
     ).get("results", [])
     
     if not jobs:
-        return {"message": f"I couldn't find any current openings for '{job_title}'. Would you like me to search for related roles?"}
+        return {"message": f"I couldn't find any current openings for '{job_title}' or similar roles."}
 
     _ingest_jobs_data(jobs, country_code)
 
     examples = []
     for j in jobs[:10]:
-        # CORRECTED: Create the salary map using the now-defined COUNTRY_CURRENCY_MAP
-        salary_map = {
-            "min": j.get("salary_min"),
-            "max": j.get("salary_max"),
-            "currency": COUNTRY_CURRENCY_MAP.get(country_code, "N/A")
-        }
+        salary_map = {"min": j.get("salary_min"), "max": j.get("salary_max"), "currency": COUNTRY_CURRENCY_MAP.get(country_code, "N/A")}
         examples.append({
             "title": j["title"],
             "company": j.get("company", {}).get("display_name", "N/A"),
             "location": j.get("location", {}).get("display_name", "N/A"),
+            "type": _format_employment_type(j),
             "salary": _format_salary(salary_map),
             "description_snippet": j.get("description", "")[:400] + "...",
             "url": j.get("redirect_url")
         })
     
-    # RAG Workflow: Pinecone -> Firestore
     query_embedding = compute_embedding(job_title)
     if query_embedding:
         matches = query_vectors(pinecone_job_index, query_embedding, top_k=3)
@@ -205,6 +206,7 @@ def get_job_role_descriptions_function(
                         "title": r.get("title", "N/A"),
                         "company": r.get("company", {}).get("name", "RAG Result"),
                         "location": r.get("location", {}).get("raw_text", "N/A"),
+                        "type": _format_employment_type(r),
                         "salary": _format_salary(r.get("salary")),
                         "description_snippet": r.get("description_snippet", "") + "...",
                         "url": r.get("url", "#")
@@ -212,15 +214,17 @@ def get_job_role_descriptions_function(
     
     return {"job_description_examples": examples}
 
-def suggest_next_level_roles_function(
-    current_title: str, country_code: str = "gb", location: Optional[str] = None
+async def suggest_next_level_roles_function(
+    current_title: str, country_code: str = "gb", location: Optional[str] = None,
+    employment_type: Optional[str] = None
 ) -> dict:
-    logger.info(f"[Tool] suggest_next_level_roles('{current_title}', country='{country_code}', location='{location}')")
+    logger.info(f"[Tool] suggest_next_level_roles('{current_title}', type='{employment_type}')")
     
     search_query = f"senior {current_title} OR lead {current_title} OR {current_title} manager"
     
     jobs = adzuna_api.search_jobs(
-        what=search_query, country=country_code, location=location, results=20
+        what=search_query, country=country_code, location=location,
+        results=20, employment_type=employment_type
     ).get("results", [])
 
     if not jobs:
