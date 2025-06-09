@@ -20,7 +20,10 @@ uvicorn
 
 langfuse
 
-
 # Google Maps API
 
 googlemaps
+
+# Firestore
+
+google-cloud-firestore

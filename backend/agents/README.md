@@ -34,12 +34,20 @@ gcloud secrets create adzuna-app-key \
   --replication-policy="automatic" \
   --data-file=<(echo -n "YOUR_ADZUNA_APP_KEY")
 
+The pinecone API key can be added using
+
+gcloud secrets create pinecone-api-key \
+  --replication-policy="automatic" \
+  --data-file=<(echo -n "YOUR_PINECONE_APP_KEY")
+
+
 👤 Permissions
 Ensure the service account or GCP VM has the following permissions:
 
-Secret Manager Secret Accessor (for reading secrets)
-
-Secret Manager Admin (for managing secrets if needed)
+Cloud Datastore User
+Secret Manager Admin (only if using Workbench AI or Console)
+Secret Manager Secret Accessor
+Vertex AI user
 
 You can attach these via IAM or custom roles as required.
 

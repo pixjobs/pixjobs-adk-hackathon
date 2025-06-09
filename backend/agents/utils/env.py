@@ -15,15 +15,18 @@ load_dotenv()
 DEFAULT_SECRET_MAP = {
     "GOOGLE_CLOUD_PROJECT": "google-cloud-project",
     "GOOGLE_CLOUD_LOCATION": "google-cloud-location",
-    "GEMINI_API_KEY": "gemini-api-key",        # Only needed if using Gemini directly
-    "GEMINI_MODEL": "gemini-model",            # Optional override
-    "ENABLE_LANGFUSE": "enable-langfuse",      # Toggle telemetry
+    "GEMINI_API_KEY": "gemini-api-key",
+    "GEMINI_MODEL": "gemini-model",
+    "ENABLE_LANGFUSE": "enable-langfuse",
     "LANGFUSE_SECRET_KEY": "langfuse-secret-key",
     "LANGFUSE_PUBLIC_KEY": "langfuse-public-key",
 
     # ✅ Adzuna API credentials
     "ADZUNA_APP_ID": "adzuna-app-id",
     "ADZUNA_APP_KEY": "adzuna-app-key",
+
+    # ✅ Pinecone API key
+    "PINECONE_API_KEY": "pinecone-api-key",
 }
 
 def load_env(project_id: str = "workmatch-hackathon", secret_map: dict = None):
