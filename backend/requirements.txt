@@ -4,6 +4,7 @@ google-adk
 # Google Cloud (for secrets, optional file storage, and possibly Vertex AI)
 google-cloud-secret-manager
 google-cloud-storage
+google-cloud-aiplatform
 
 # PDF/Word file parsing for CVs
 pdfplumber  # For PDF
