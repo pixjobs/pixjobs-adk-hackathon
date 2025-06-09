@@ -8,18 +8,17 @@ from utils.env import load_env, get_model
 load_env()
 
 from google.adk.agents import Agent
-
 from .prompt import CAREER_GUIDANCE_PROMPT
 
 print("--- agent.py module is being loaded ---")
 
 # --- Logging Setup ---
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
 if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
     logger.addHandler(handler)
 
 # --- Load Adzuna credentials ---
@@ -60,13 +59,29 @@ class AdzunaAPI:
             logger.error(f"[AdzunaAPI] Failed to fetch job data: {e}", exc_info=True)
             return {"error": str(e)}
 
-    def search_jobs(self, what: str, country: str = "gb", results: int = 5, salary_min: int = None, location: str = None) -> dict:
+    def search_jobs(
+        self,
+        what: str,
+        country: str = "gb",
+        results: int = 10,
+        salary_min: int = None,
+        location: str = None,
+        category: str = None,
+        what_or: str = None
+    ) -> dict:
         url = f"{ADZUNA_BASE_URL}/{country}/search/1"
-        params = {"what_phrase": what, "results_per_page": results}
+        params = {
+            "what": what,
+            "results_per_page": results
+        }
+        if what_or:
+            params["what_or"] = what_or
         if salary_min:
             params["salary_min"] = salary_min
         if location:
             params["where"] = location
+        if category:
+            params["category"] = category
         return self._make_get_request(url, params)
 
     def get_categories(self, country="gb") -> dict:
@@ -91,7 +106,17 @@ adzuna_api = AdzunaAPI(app_id=ADZUNA_APP_ID, app_key=ADZUNA_APP_KEY)
 def explore_career_fields_function(keywords: str, country_code: str = "gb") -> dict:
     logger.debug(f"--- Tool Call: explore_career_fields_function('{keywords}', '{country_code}') ---")
     salary_filter = 50000 if "high paying" in keywords.lower() else None
-    response = adzuna_api.search_jobs(keywords, country=country_code, salary_min=salary_filter, location="London")
+    keyword_list = [k.strip() for k in keywords.split() if k.strip()]
+    what = " ".join(keyword_list)
+    what_or = " OR ".join(keyword_list) if len(keyword_list) > 1 else None
+
+    response = adzuna_api.search_jobs(
+        what=what,
+        what_or=what_or,
+        country=country_code,
+        salary_min=salary_filter,
+        location="London"
+    )
     if "error" in response:
         return {"error": response["error"]}
 
@@ -102,11 +127,22 @@ def explore_career_fields_function(keywords: str, country_code: str = "gb") -> d
     titles = list({job.get("title") for job in jobs if job.get("title")})
     return {"suggested_job_titles": titles[:5]}
 
+
 # --- Tool: Get Job Role Descriptions ---
 def get_job_role_descriptions_function(job_title: str, country_code: str = "gb") -> dict:
     logger.debug(f"--- Tool Call: get_job_role_descriptions_function('{job_title}', '{country_code}') ---")
     salary_filter = 50000 if "high paying" in job_title.lower() else None
-    response = adzuna_api.search_jobs(job_title, country=country_code, salary_min=salary_filter, location="London")
+    keyword_list = [k.strip() for k in job_title.split() if k.strip()]
+    what = " ".join(keyword_list)
+    what_or = " OR ".join(keyword_list) if len(keyword_list) > 1 else None
+
+    response = adzuna_api.search_jobs(
+        what=what,
+        what_or=what_or,
+        country=country_code,
+        salary_min=salary_filter,
+        location="London"
+    )
     if "error" in response:
         return {"error": response["error"]}
 
@@ -115,7 +151,7 @@ def get_job_role_descriptions_function(job_title: str, country_code: str = "gb")
         return {"message": f"No current openings found for '{job_title}'."}
 
     examples = []
-    for job in jobs[:2]:
+    for job in jobs[:10]:
         salary = job.get("salary_max") or job.get("salary_min") or "Not listed"
         examples.append({
             "title": job.get("title"),
@@ -127,11 +163,21 @@ def get_job_role_descriptions_function(job_title: str, country_code: str = "gb")
         })
     return {"job_description_examples": examples}
 
+
 # --- Tool: Discover Next Level Roles ---
 def suggest_next_level_roles_function(current_title: str, country_code: str = "gb") -> dict:
     logger.debug(f"--- Tool Call: suggest_next_level_roles_function('{current_title}', '{country_code}') ---")
     next_keywords = f"{current_title} lead manager head senior"
-    response = adzuna_api.search_jobs(next_keywords, country=country_code, location="London")
+    keyword_list = [k.strip() for k in next_keywords.split() if k.strip()]
+    what = " ".join(keyword_list)
+    what_or = " OR ".join(keyword_list) if len(keyword_list) > 1 else None
+
+    response = adzuna_api.search_jobs(
+        what=what,
+        what_or=what_or,
+        country=country_code,
+        location="London"
+    )
     if "error" in response:
         return {"error": response["error"]}
 
