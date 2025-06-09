@@ -114,8 +114,7 @@ def explore_career_fields_function(keywords: str, country_code: str = "gb") -> d
         what=what,
         what_or=what_or,
         country=country_code,
-        salary_min=salary_filter,
-        location="London"
+        salary_min=salary_filter
     )
     if "error" in response:
         return {"error": response["error"]}
@@ -140,8 +139,7 @@ def get_job_role_descriptions_function(job_title: str, country_code: str = "gb")
         what=what,
         what_or=what_or,
         country=country_code,
-        salary_min=salary_filter,
-        location="London"
+        salary_min=salary_filter
     )
     if "error" in response:
         return {"error": response["error"]}
@@ -175,8 +173,7 @@ def suggest_next_level_roles_function(current_title: str, country_code: str = "g
     response = adzuna_api.search_jobs(
         what=what,
         what_or=what_or,
-        country=country_code,
-        location="London"
+        country=country_code
     )
     if "error" in response:
         return {"error": response["error"]}
@@ -190,6 +187,7 @@ def suggest_next_level_roles_function(current_title: str, country_code: str = "g
     return {
         "next_level_roles": next_roles[:5] or ["No obvious next-level roles found."]
     }
+
 
 # --- ADK Agent ---
 career_guidance_agent = Agent(
