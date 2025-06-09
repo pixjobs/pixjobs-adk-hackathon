@@ -1,152 +1,159 @@
-import logging
 import os
-from typing import List, Union, Optional
+import logging
+from typing import List, Dict, Any
+import requests
+
+# ✅ Ensure environment is loaded before anything else
+from utils.env import load_env, get_model
+load_env()
 
 from google.adk.agents import Agent
-from google.adk.tools import FunctionTool
 
-from utils.env import get_model
 from .prompt import CAREER_GUIDANCE_PROMPT
 
-try:
-    from google.cloud import talent_v4 as talent
-    talent_solution_available = True
-    logger = logging.getLogger(__name__)
-except ImportError:
-    talent_solution_available = False
-    talent = None
-    logger = logging.getLogger(__name__)
-    logger.warning("google-cloud-talent library not found. Career exploration tools will be disabled.")
+print("--- agent.py module is being loaded ---")
 
-GCP_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+# --- Logging Setup ---
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+if not logger.handlers:
+    logger.addHandler(handler)
+
+# --- Load Adzuna credentials ---
+ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
+ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
+ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs"
+
+if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
+    logger.critical("[startup] Missing ADZUNA_APP_ID or ADZUNA_APP_KEY in env.")
+else:
+    logger.info("[startup] Adzuna credentials loaded successfully.")
+
 MODEL_INSTANCE = get_model()
+logger.info(f"--- Agent is using Gemini model: {MODEL_INSTANCE} ---")
 
-def _get_talent_client_and_parent() -> Union[tuple[talent.JobServiceClient, str], tuple[None, None]]:
-    if not talent_solution_available or not GCP_PROJECT_ID:
-        return None, None
-    try:
-        client = talent.JobServiceClient()
-        parent = f"projects/{GCP_PROJECT_ID}"
-        return client, parent
-    except Exception as e:
-        logger.error(f"[TalentAPI] Failed to initialize JobServiceClient: {e}", exc_info=True)
-        return None, None
+# --- AdzunaAPI Client ---
+class AdzunaAPI:
+    def __init__(self, app_id: str, app_key: str):
+        if not app_id or not app_key:
+            raise ValueError("Adzuna App ID and Key are required.")
+        self.app_id = app_id
+        self.app_key = app_key
 
-def _create_request_metadata(tool_name: str) -> Union[talent.types.RequestMetadata, None]:
-    if not talent_solution_available: return None
-    return talent.types.RequestMetadata(
-        domain="workmatch-career-guidance",
-        session_id=f"adk_session_{tool_name}",
-        user_id="adk_user_guidance"
-    )
+    def _make_get_request(self, url, params=None):
+        if params is None:
+            params = {}
+        params.update({"app_id": self.app_id, "app_key": self.app_key})
+        try:
+            logger.debug(f"[AdzunaAPI] GET {url} with params {params}")
+            response = requests.get(url, params=params, timeout=10)
+            logger.debug(f"[AdzunaAPI] Full URL: {response.url}")
+            response.raise_for_status()
+            return response.json()
+        except requests.HTTPError as http_err:
+            logger.error(f"[AdzunaAPI] HTTP error: {http_err.response.status_code} - {http_err.response.text}", exc_info=True)
+            return {"error": f"HTTP {http_err.response.status_code}: {http_err.response.text}"}
+        except requests.RequestException as e:
+            logger.error(f"[AdzunaAPI] Failed to fetch job data: {e}", exc_info=True)
+            return {"error": str(e)}
 
-def explore_career_fields_function(keywords: str, location: str = "") -> dict:
-    """
-    Suggests potential job titles or career fields based on keywords and an optional location.
-    Use this to brainstorm roles related to user's interests or skills.
-
-    Args:
-        keywords (str): Keywords related to interests, skills, or desired job aspects.
-        location (Optional[str], optional): A specific city, state, or country. Defaults to None.
-
-    Returns:
-        Dict: A dictionary containing suggested job titles or an error/message.
-    """
-    client, parent = _get_talent_client_and_parent()
-    if not client:
-        return {"error": "Talent Solution client not available or GCP_PROJECT_ID missing."}
-    try:
-        request_metadata = _create_request_metadata("explore_fields")
-        job_query = talent.types.JobQuery(query=keywords)
+    def search_jobs(self, what: str, country: str = "gb", results: int = 5, salary_min: int = None, location: str = None) -> dict:
+        url = f"{ADZUNA_BASE_URL}/{country}/search/1"
+        params = {"what_phrase": what, "results_per_page": results}
+        if salary_min:
+            params["salary_min"] = salary_min
         if location:
-            job_query.location_filters.append(talent.types.LocationFilter(address=location))
-        histogram_queries = [talent.types.HistogramQuery(histogram_query="JOB_TITLE")]
-        request = talent.types.SearchJobsRequest(
-            parent=parent, request_metadata=request_metadata, job_query=job_query,
-            histogram_queries=histogram_queries, job_view=talent.types.JobView.JOB_VIEW_ID_ONLY, page_size=1
-        )
-        response = client.search_jobs(request=request)
-        suggested_titles = []
-        for histogram_result in response.histogram_query_results:
-            if histogram_result.histogram == "JOB_TITLE":
-                for title, _ in histogram_result.histogram_results.items():
-                    if len(suggested_titles) < 5:
-                        clean_title = title.replace("(Remote)", "").replace("- Remote", "").strip()
-                        if clean_title and clean_title not in suggested_titles:
-                             suggested_titles.append(clean_title)
-        if not suggested_titles and len(keywords.split()) <= 4:
-            request.job_view = talent.types.JobView.JOB_VIEW_SMALL
-            request.page_size = 10 
-            request.histogram_queries = []
-            response_fallback = client.search_jobs(request=request)
-            for result_item in response_fallback.matching_jobs:
-                if len(suggested_titles) < 5:
-                    clean_title = result_item.job.title.replace("(Remote)", "").replace("- Remote", "").strip()
-                    if clean_title and clean_title not in suggested_titles:
-                        suggested_titles.append(clean_title)
-                else: break
-        if not suggested_titles:
-            return {"message": "Could not identify distinct career fields. Try different keywords."}
-        return {"suggested_job_titles": suggested_titles}
-    except Exception as e:
-        logger.error(f"[explore_career_fields_function] API Error: {str(e)}", exc_info=True)
-        return {"error": "An error occurred while exploring career fields."}
+            params["where"] = location
+        return self._make_get_request(url, params)
 
-def get_job_role_descriptions_function(job_title: str, location: str = "") -> dict:
-    """
-    Fetches example job descriptions for a specific job title and optional location.
-    The agent can then summarize insights from these descriptions.
+    def get_categories(self, country="gb") -> dict:
+        url = f"{ADZUNA_BASE_URL}/{country}/categories"
+        return self._make_get_request(url)
 
-    Args:
-        job_title (str): The specific job title to get details for.
-        location (Optional[str], optional): A specific city, state, or country. Defaults to None.
-
-    Returns:
-        Dict: A dictionary containing job description examples or an error/message.
-    """
-    client, parent = _get_talent_client_and_parent()
-    if not client:
-        return {"error": "Talent Solution client not available or GCP_PROJECT_ID missing."}
-    try:
-        request_metadata = _create_request_metadata("get_descriptions")
-        job_query = talent.types.JobQuery(query=f'title:"{job_title}"')
+    def get_salary_histogram(self, what: str, country="gb", location: str = None) -> dict:
+        url = f"{ADZUNA_BASE_URL}/{country}/histogram"
+        params = {"what": what}
         if location:
-            job_query.location_filters.append(talent.types.LocationFilter(address=location))
-        request = talent.types.SearchJobsRequest(
-            parent=parent, request_metadata=request_metadata, job_query=job_query,
-            job_view=talent.types.JobView.JOB_VIEW_FULL, page_size=2
-        )
-        response = client.search_jobs(request=request)
-        if not response.matching_jobs:
-            return {"message": f"No job postings found for '{job_title}'. Try a broader title or location."}
-        descriptions = []
-        for item in response.matching_jobs:
-            job = item.job
-            desc_for_llm = job.description[:3500] if job.description else "No description provided."
-            primary_location = job.addresses[0] if job.addresses and job.addresses[0] else "N/A"
-            company_name_str = "N/A"
-            if job.company_display_name: company_name_str = job.company_display_name
-            elif job.company_name: company_name_str = job.company_name.split('/')[-1]
-            descriptions.append({
-                "title": job.title, "company": company_name_str, "location_display": primary_location,
-                "description_for_synthesis": desc_for_llm,
-                "job_link": job.application_info.uris[0] if job.application_info and job.application_info.uris else "N/A"
-            })
-        return {"job_description_examples": descriptions}
-    except Exception as e:
-        logger.error(f"[get_job_role_descriptions_function] API Error: {str(e)}", exc_info=True)
-        return {"error": "Error fetching job role descriptions."}
+            params["location0"] = location
+        return self._make_get_request(url, params)
 
-explore_fields_tool = FunctionTool(func=explore_career_fields_function)
-get_role_details_tool = FunctionTool(func=get_job_role_descriptions_function)
+    def get_top_companies(self, what: str, country="gb") -> dict:
+        url = f"{ADZUNA_BASE_URL}/{country}/top_companies"
+        params = {"what": what}
+        return self._make_get_request(url, params)
 
+adzuna_api = AdzunaAPI(app_id=ADZUNA_APP_ID, app_key=ADZUNA_APP_KEY)
+
+# --- Tool: Explore Career Fields ---
+def explore_career_fields_function(keywords: str, country_code: str = "gb") -> dict:
+    logger.debug(f"--- Tool Call: explore_career_fields_function('{keywords}', '{country_code}') ---")
+    salary_filter = 50000 if "high paying" in keywords.lower() else None
+    response = adzuna_api.search_jobs(keywords, country=country_code, salary_min=salary_filter, location="London")
+    if "error" in response:
+        return {"error": response["error"]}
+
+    jobs = response.get("results", [])
+    if not jobs:
+        return {"message": "No roles found for that query."}
+
+    titles = list({job.get("title") for job in jobs if job.get("title")})
+    return {"suggested_job_titles": titles[:5]}
+
+# --- Tool: Get Job Role Descriptions ---
+def get_job_role_descriptions_function(job_title: str, country_code: str = "gb") -> dict:
+    logger.debug(f"--- Tool Call: get_job_role_descriptions_function('{job_title}', '{country_code}') ---")
+    salary_filter = 50000 if "high paying" in job_title.lower() else None
+    response = adzuna_api.search_jobs(job_title, country=country_code, salary_min=salary_filter, location="London")
+    if "error" in response:
+        return {"error": response["error"]}
+
+    jobs = response.get("results", [])
+    if not jobs:
+        return {"message": f"No current openings found for '{job_title}'."}
+
+    examples = []
+    for job in jobs[:2]:
+        salary = job.get("salary_max") or job.get("salary_min") or "Not listed"
+        examples.append({
+            "title": job.get("title"),
+            "company": job.get("company", {}).get("display_name", "Unknown"),
+            "location": job.get("location", {}).get("display_name", "N/A"),
+            "salary": f"£{salary:,.2f}" if isinstance(salary, (int, float)) else salary,
+            "description_snippet": job.get("description", "")[:400],
+            "url": job.get("redirect_url")
+        })
+    return {"job_description_examples": examples}
+
+# --- Tool: Discover Next Level Roles ---
+def suggest_next_level_roles_function(current_title: str, country_code: str = "gb") -> dict:
+    logger.debug(f"--- Tool Call: suggest_next_level_roles_function('{current_title}', '{country_code}') ---")
+    next_keywords = f"{current_title} lead manager head senior"
+    response = adzuna_api.search_jobs(next_keywords, country=country_code, location="London")
+    if "error" in response:
+        return {"error": response["error"]}
+
+    jobs = response.get("results", [])
+    next_roles = list({
+        job.get("title")
+        for job in jobs
+        if job.get("title") and current_title.lower() not in job.get("title").lower()
+    })
+    return {
+        "next_level_roles": next_roles[:5] or ["No obvious next-level roles found."]
+    }
+
+# --- ADK Agent ---
 career_guidance_agent = Agent(
     name="career_guidance_agent",
     model=MODEL_INSTANCE,
-    description="A supportive guide to help users explore passions, skills, and values for career clarity. It can now use tools to explore relevant job titles and fetch example job descriptions to make the guidance more concrete, considering location if provided.",
+    description="Helps users explore career options, understand specific roles, and discover next-level jobs.",
     instruction=CAREER_GUIDANCE_PROMPT,
     tools=[
-        explore_fields_tool,
-        get_role_details_tool,
+        explore_career_fields_function,
+        get_job_role_descriptions_function,
+        suggest_next_level_roles_function,
     ]
 )

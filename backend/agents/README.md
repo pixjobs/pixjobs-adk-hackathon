@@ -24,6 +24,16 @@ gcloud secrets create langfuse-secret-key --data-file=<(echo "YOUR_LANGFUSE_SECR
 
 ℹ️ You can toggle tracing by changing the enable-langfuse value to "false" or deleting the secret.
 
+To use Adzuna Jobs Data, register for an API key and then add the credentials to the Secret Manager:
+
+gcloud secrets create adzuna-app-id \
+  --replication-policy="automatic" \
+  --data-file=<(echo -n "YOUR_ADZUNA_APP_ID")
+
+gcloud secrets create adzuna-app-key \
+  --replication-policy="automatic" \
+  --data-file=<(echo -n "YOUR_ADZUNA_APP_KEY")
+
 👤 Permissions
 Ensure the service account or GCP VM has the following permissions:
 

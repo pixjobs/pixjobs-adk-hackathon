@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # Optional .env for local development
 load_dotenv()
 
+# --- Updated Secret Map ---
 DEFAULT_SECRET_MAP = {
     "GOOGLE_CLOUD_PROJECT": "google-cloud-project",
     "GOOGLE_CLOUD_LOCATION": "google-cloud-location",
@@ -19,6 +20,10 @@ DEFAULT_SECRET_MAP = {
     "ENABLE_LANGFUSE": "enable-langfuse",      # Toggle telemetry
     "LANGFUSE_SECRET_KEY": "langfuse-secret-key",
     "LANGFUSE_PUBLIC_KEY": "langfuse-public-key",
+
+    # ✅ Adzuna API credentials
+    "ADZUNA_APP_ID": "adzuna-app-id",
+    "ADZUNA_APP_KEY": "adzuna-app-key",
 }
 
 def load_env(project_id: str = "workmatch-hackathon", secret_map: dict = None):
@@ -29,23 +34,38 @@ def load_env(project_id: str = "workmatch-hackathon", secret_map: dict = None):
         project_id (str): GCP project ID
         secret_map (dict): ENV_VAR -> Secret Name mapping
     """
-    client = secretmanager.SecretManagerServiceClient()
     secret_map = secret_map or DEFAULT_SECRET_MAP
 
-    for env_var, secret_name in secret_map.items():
-        if os.getenv(env_var):  # Already set (e.g. by .env)
-            logger.debug(f"[env] {env_var} already set, skipping Secret Manager lookup.")
-            continue
-        try:
-            name = f"projects/{project_id}/secrets/{secret_name}/versions/latest"
-            response = client.access_secret_version(request={"name": name})
-            value = response.payload.data.decode("utf-8")
-            os.environ[env_var] = value
-            logger.info(f"[env] Loaded {env_var} from Secret Manager.")
-        except Exception as e:
-            logger.warning(f"[env] Failed to load {env_var} from {secret_name}: {e}")
+    # Check if we can use Secret Manager
+    try:
+        client = secretmanager.SecretManagerServiceClient()
+        can_use_secret_manager = True
+        logger.info("[env] Secret Manager client initialized. Will attempt to load secrets from GCP.")
+    except Exception as e:
+        client = None
+        can_use_secret_manager = False
+        logger.warning(f"[env] Could not initialize Secret Manager client: {e}. Will rely on local .env file or pre-set environment variables.")
 
-    # Setup Langfuse OpenTelemetry headers if enabled
+    for env_var, secret_name in secret_map.items():
+        # Priority 1: Check if already set
+        if os.getenv(env_var):
+            logger.debug(f"[env] {env_var} already set, skipping lookup.")
+            continue
+
+        # Priority 2: Try Secret Manager
+        if can_use_secret_manager:
+            try:
+                name = f"projects/{project_id}/secrets/{secret_name}/versions/latest"
+                response = client.access_secret_version(request={"name": name})
+                value = response.payload.data.decode("utf-8")
+                os.environ[env_var] = value
+                logger.info(f"[env] Loaded {env_var} from Secret Manager.")
+            except Exception as e:
+                logger.warning(f"[env] Failed to load {env_var} from secret '{secret_name}': {e}")
+        else:
+            logger.debug(f"[env] {env_var} not found in environment and Secret Manager is unavailable.")
+
+    # Langfuse OpenTelemetry header setup (optional)
     if os.getenv("ENABLE_LANGFUSE", "").lower() == "true":
         pub = os.getenv("LANGFUSE_PUBLIC_KEY")
         sec = os.getenv("LANGFUSE_SECRET_KEY")
@@ -56,7 +76,6 @@ def load_env(project_id: str = "workmatch-hackathon", secret_map: dict = None):
             logger.info("[env] Langfuse telemetry enabled.")
         else:
             logger.warning("[env] Langfuse enabled but missing public or secret key.")
-
 
 def get_model(default="gemini-2.0-flash") -> str:
     """

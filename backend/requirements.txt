@@ -20,9 +20,6 @@ uvicorn
 
 langfuse
 
-#GCP Cloud Talent
-
-google-cloud-talent
 
 # Google Maps API
 
