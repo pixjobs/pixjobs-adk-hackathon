@@ -41,14 +41,19 @@ def _format_employment_type(job: Dict[str, Any]) -> str:
     if contract_type and contract_time: return f"{contract_type}, {contract_time}"
     return contract_type or contract_time or "N/A"
 
-async def _expand_job_title(job_title: str) -> str:
+async def _expand_job_title(job_title: str, extra: bool = False) -> str:
     logger.info(f"Expanding job title: '{job_title}'")
     try:
-        prompt = (
+        variant_prompt = (
             f"Given the job title '{job_title}', generate a list of up to 6 keyword-friendly alternatives optimized for job search APIs like Adzuna. "
             f"Include commonly used titles and skills-based variants, and return them as a comma-separated string."
         )
-        response = await MODEL_INSTANCE.generate_content_async(prompt)
+        if extra:
+            variant_prompt = (
+                f"Earlier attempts failed to return jobs. Now generate a broader list of 10+ alternative job titles and keyword variants for '{job_title}' "
+                f"with looser phrasing, general field names, related industries, and similar positions. Return a comma-separated list."
+            )
+        response = await MODEL_INSTANCE.generate_content_async(variant_prompt)
         keywords = [s.strip() for s in response.text.split(',') if s.strip()]
         return " OR ".join(keywords)
     except Exception as e:
@@ -67,31 +72,45 @@ def _ingest_jobs_data(jobs: List[Dict[str, Any]], country_code: str):
             vectors_to_upsert.append((doc_id, embedding, {"title": job.get("title", "")}))
     upsert_vectors(pinecone_job_index, vectors_to_upsert)
 
+async def _search_jobs_with_backoff(
+    job_title: str, country_code: str, location: Optional[str], salary_min: Optional[int], employment_type: Optional[str]
+) -> List[Dict[str, Any]]:
+    what_query = " ".join([t.strip() for t in job_title.split() if t.strip()])
+    what_or_query = await _expand_job_title(job_title)
+
+    jobs = adzuna_api.search_jobs(
+        what=what_query, what_or=what_or_query, country=country_code, location=location,
+        salary_min=salary_min, employment_type=employment_type
+    ).get("results", [])
+
+    if not jobs:
+        logger.info("Retrying with looser parameters...")
+        what_or_query = await _expand_job_title(job_title, extra=True)
+        jobs = adzuna_api.search_jobs(
+            what=what_query, what_or=what_or_query, country=country_code
+        ).get("results", [])
+
+    return jobs
+
 async def get_job_role_descriptions_function(
     job_title: str, country_code: str = "gb",
     location: Optional[str] = None, salary_min: Optional[int] = None,
     employment_type: Optional[str] = None
 ) -> dict:
     logger.info(f"[Tool] get_job_role_descriptions: job_title={job_title}, country_code={country_code}, location={location}, salary_min={salary_min}, employment_type={employment_type}")
-    what_or_query = await _expand_job_title(job_title)
-    what_query = " ".join([t.strip() for t in job_title.split() if t.strip()])
 
     current_salary_min = salary_min
     if "high paying" in job_title.lower():
         threshold = HIGH_PAYING_THRESHOLDS.get(country_code, DEFAULT_HIGH_PAYING_THRESHOLD)
-        current_salary_min = max(current_salary_min or 0, threshold)
+        current_salary_min = max(salary_min or 0, threshold)
 
-    jobs = adzuna_api.search_jobs(
-        what=what_query, what_or=what_or_query, country=country_code, location=location,
-        salary_min=current_salary_min, employment_type=employment_type
-    ).get("results", [])
-
-    if not jobs and location:
-        logger.info("No jobs found with location, retrying without location...")
-        jobs = adzuna_api.search_jobs(
-            what=what_query, what_or=what_or_query, country=country_code,
-            salary_min=current_salary_min, employment_type=employment_type
-        ).get("results", [])
+    jobs = await _search_jobs_with_backoff(
+        job_title=job_title,
+        country_code=country_code,
+        location=location,
+        salary_min=current_salary_min,
+        employment_type=employment_type
+    )
 
     if not jobs:
         logger.warning("No job results returned from Adzuna API.")
@@ -160,32 +179,6 @@ async def get_skill_suggestions_function(job_title: str) -> dict:
         logger.error(f"LLM failed to generate skill suggestions: {e}")
         return {"skills": []}
 
-async def ingest_jobs_from_adzuna(
-    what: str, country_code: str = "gb", location: Optional[str] = None,
-    salary_min: Optional[int] = None, employment_type: Optional[str] = None
-) -> dict:
-    logger.info(f"[Tool] ingest_jobs_from_adzuna: what={what}, country_code={country_code}, location={location}, salary_min={salary_min}, employment_type={employment_type}")
-
-    what = what.strip()
-    what_or = await _expand_job_title(what)
-
-    current_salary_min = salary_min
-    if "high paying" in what.lower():
-        threshold = HIGH_PAYING_THRESHOLDS.get(country_code, DEFAULT_HIGH_PAYING_THRESHOLD)
-        current_salary_min = max(current_salary_min or 0, threshold)
-
-    jobs = adzuna_api.search_jobs(
-        what=what, what_or=what_or, country=country_code, location=location,
-        salary_min=current_salary_min, employment_type=employment_type
-    ).get("results", [])
-
-    if not jobs:
-        logger.warning("No jobs returned from Adzuna for ingest_jobs_from_adzuna.")
-        return {"message": f"No roles found for '{what}' in {location or country_code.upper()}."}
-
-    _ingest_jobs_data(jobs, country_code)
-    return {"message": f"Successfully ingested {len(jobs)} jobs for '{what}'"}
-
 async def explore_career_fields_function(
     keywords: str, country_code: str = "gb",
     location: Optional[str] = None, salary_min: Optional[int] = None,
@@ -193,31 +186,18 @@ async def explore_career_fields_function(
 ) -> dict:
     logger.info(f"[Tool] explore_career_fields_function() called with: keywords='{keywords}', location='{location}', country='{country_code}', employment='{employment_type}'")
 
-    what_or = await _expand_job_title(keywords)
-    what = keywords
-
+    current_salary_min = salary_min
     if "high paying" in keywords.lower():
         threshold = HIGH_PAYING_THRESHOLDS.get(country_code, DEFAULT_HIGH_PAYING_THRESHOLD)
-        salary_min = max(salary_min or 0, threshold)
+        current_salary_min = max(salary_min or 0, threshold)
 
-    jobs = adzuna_api.search_jobs(
-        what=what,
-        what_or=what_or,
-        country=country_code,
+    jobs = await _search_jobs_with_backoff(
+        job_title=keywords,
+        country_code=country_code,
         location=location,
-        salary_min=salary_min,
+        salary_min=current_salary_min,
         employment_type=employment_type
-    ).get("results", [])
-
-    if not jobs and location:
-        logger.info("[Tool] No results, retrying without location...")
-        jobs = adzuna_api.search_jobs(
-            what=what,
-            what_or=what_or,
-            country=country_code,
-            salary_min=salary_min,
-            employment_type=employment_type
-        ).get("results", [])
+    )
 
     if not jobs:
         return {"message": f"No roles found matching '{keywords}'."}
@@ -225,3 +205,31 @@ async def explore_career_fields_function(
     _ingest_jobs_data(jobs, country_code)
     titles = list(dict.fromkeys([j["title"].strip() for j in jobs if j.get("title")]))
     return {"suggested_job_titles": titles[:5]}
+
+async def ingest_jobs_from_adzuna(
+    what: str,
+    country_code: str = "gb",
+    location: Optional[str] = None,
+    salary_min: Optional[int] = None,
+    employment_type: Optional[str] = None
+) -> dict:
+    logger.info(f"[Tool] ingest_jobs_from_adzuna: what={what}, country_code={country_code}, location={location}, salary_min={salary_min}, employment_type={employment_type}")
+
+    current_salary_min = salary_min
+    if "high paying" in what.lower():
+        threshold = HIGH_PAYING_THRESHOLDS.get(country_code, DEFAULT_HIGH_PAYING_THRESHOLD)
+        current_salary_min = max(salary_min or 0, threshold)
+
+    jobs = await _search_jobs_with_backoff(
+        job_title=what,
+        country_code=country_code,
+        location=location,
+        salary_min=current_salary_min,
+        employment_type=employment_type
+    )
+
+    if not jobs:
+        return {"message": f"No roles found for '{what}' in {location or country_code.upper()}."}
+
+    _ingest_jobs_data(jobs, country_code)
+    return {"message": f"Successfully ingested {len(jobs)} jobs for '{what}'"}
