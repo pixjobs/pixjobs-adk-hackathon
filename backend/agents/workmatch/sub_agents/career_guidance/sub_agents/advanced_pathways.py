@@ -9,10 +9,20 @@ from ..prompt import (
     LEADERSHIP_PROMPT,
     LATERAL_PIVOT_PROMPT,
     CERTIFICATION_PROMPT,
+    JOB_TITLE_EXPANSION_PROMPT,
 )
 from ..tools.career_tools import (
     get_job_role_descriptions_function,
     explore_career_fields_function,
+)
+
+# Sub-agent to suggest related job titles for fallback or exploration
+job_title_expansion_agent = LlmAgent(
+    name="job_title_expansion_agent",
+    model=get_model(),
+    description="Suggests related or alternative job titles based on user input (e.g. if no results found).",
+    instruction=JOB_TITLE_EXPANSION_PROMPT,
+    tools=[]
 )
 
 # Sub-agent to suggest next-level roles
