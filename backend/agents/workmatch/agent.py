@@ -63,3 +63,4 @@ def build_root_agent(use_traced_root_class: bool = True):
     return instance
 
 root_agent = build_root_agent(use_traced_root_class=True)
+agent = root_agent

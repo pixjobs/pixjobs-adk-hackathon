@@ -1,14 +1,9 @@
 # Core ADK framework
 google-adk
 
-# Google Cloud (for secrets, optional file storage, and possibly Vertex AI)
 google-cloud-secret-manager
 google-cloud-storage
 google-cloud-aiplatform
-
-# PDF/Word file parsing for CVs
-pdfplumber  # For PDF
-python-docx  # For .docx files
 
 # Pinecone for semantic search
 pinecone
@@ -20,10 +15,9 @@ uvicorn
 # Telemetry
 
 langfuse
-
-# Google Maps API
-
-googlemaps
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-api
 
 # Firestore
 
