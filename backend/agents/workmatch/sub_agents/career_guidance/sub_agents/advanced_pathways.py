@@ -1,11 +1,19 @@
-# /sub_agents/advanced_pathways_agent.py
-
 from google.adk.agents import LlmAgent
-from google.adk.tools.agent_tool import AgentTool
 from utils.env import get_model
+from utils.agent_tool_logger import LoggingAgentTool
 
-from ..prompt import ADVANCED_PATHWAYS_PROMPT, NEXT_LEVEL_ROLES_PROMPT, SKILL_SUGGESTIONS_PROMPT, LEADERSHIP_PROMPT, LATERAL_PIVOT_PROMPT, CERTIFICATION_PROMPT
-from ..tools.career_tools import get_job_role_descriptions_function, explore_career_fields_function
+from ..prompt import (
+    ADVANCED_PATHWAYS_PROMPT,
+    NEXT_LEVEL_ROLES_PROMPT,
+    SKILL_SUGGESTIONS_PROMPT,
+    LEADERSHIP_PROMPT,
+    LATERAL_PIVOT_PROMPT,
+    CERTIFICATION_PROMPT,
+)
+from ..tools.career_tools import (
+    get_job_role_descriptions_function,
+    explore_career_fields_function,
+)
 
 # Sub-agent to suggest next-level roles
 next_level_roles_agent = LlmAgent(
@@ -52,18 +60,18 @@ certification_agent = LlmAgent(
     tools=[]
 )
 
-# Main advanced pathways agent that delegates to its own subtools
+# Main advanced pathways agent with event-logged tools
 advanced_pathways_agent = LlmAgent(
     name="advanced_pathways_agent",
     model=get_model(),
     description="Guides users in career advancement, promotions, and future planning.",
     instruction=ADVANCED_PATHWAYS_PROMPT,
     tools=[
-        AgentTool(agent=next_level_roles_agent),
-        AgentTool(agent=skill_suggestions_agent),
-        AgentTool(agent=leadership_agent),
-        AgentTool(agent=lateral_pivot_agent),
-        AgentTool(agent=certification_agent),
+        LoggingAgentTool(agent=next_level_roles_agent),
+        LoggingAgentTool(agent=skill_suggestions_agent),
+        LoggingAgentTool(agent=leadership_agent),
+        LoggingAgentTool(agent=lateral_pivot_agent),
+        LoggingAgentTool(agent=certification_agent),
         get_job_role_descriptions_function,
         explore_career_fields_function,
     ]

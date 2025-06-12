@@ -1,11 +1,18 @@
-# /sub_agents/entry_level_agent.py
-
 from google.adk.agents import LlmAgent
-from google.adk.tools.agent_tool import AgentTool
 from utils.env import get_model
+from utils.agent_tool_logger import LoggingAgentTool
 
-from ..prompt import ENTRY_LEVEL_PROMPT, STARTER_TITLES_PROMPT, BEGINNER_SKILLS_PROMPT, JOB_OVERVIEW_PROMPT, ENTRY_MOTIVATION_PROMPT
-from ..tools.career_tools import get_job_role_descriptions_function, explore_career_fields_function
+from ..prompt import (
+    ENTRY_LEVEL_PROMPT,
+    STARTER_TITLES_PROMPT,
+    BEGINNER_SKILLS_PROMPT,
+    JOB_OVERVIEW_PROMPT,
+    ENTRY_MOTIVATION_PROMPT,
+)
+from ..tools.career_tools import (
+    get_job_role_descriptions_function,
+    explore_career_fields_function,
+)
 
 # Sub-agent to recommend beginner-friendly job titles
 starter_titles_agent = LlmAgent(
@@ -43,17 +50,17 @@ entry_motivation_agent = LlmAgent(
     tools=[]
 )
 
-# Main entry-level agent
+# Main entry-level agent with event-logging tools
 entry_level_agent = LlmAgent(
     name="entry_level_agent",
     model=get_model(),
     description="Helps users explore beginner-friendly job roles, required skills, and job content while staying motivated.",
     instruction=ENTRY_LEVEL_PROMPT,
     tools=[
-        AgentTool(agent=starter_titles_agent),
-        AgentTool(agent=beginner_skills_agent),
-        AgentTool(agent=job_overview_agent),
-        AgentTool(agent=entry_motivation_agent),
+        LoggingAgentTool(agent=starter_titles_agent),
+        LoggingAgentTool(agent=beginner_skills_agent),
+        LoggingAgentTool(agent=job_overview_agent),
+        LoggingAgentTool(agent=entry_motivation_agent),
         get_job_role_descriptions_function,
         explore_career_fields_function,
     ]
