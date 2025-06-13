@@ -13,7 +13,6 @@ from ..prompt import (
 )
 from ..tools.career_tools import (
     get_job_role_descriptions_function,
-    explore_career_fields_function,
 )
 
 # Sub-agent to suggest related job titles for fallback or exploration
@@ -83,6 +82,5 @@ advanced_pathways_agent = LlmAgent(
         LoggingAgentTool(agent=lateral_pivot_agent),
         LoggingAgentTool(agent=certification_agent),
         get_job_role_descriptions_function,
-        explore_career_fields_function,
     ]
 )

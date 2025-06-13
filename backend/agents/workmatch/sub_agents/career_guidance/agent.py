@@ -7,7 +7,6 @@ from google.adk.tools import FunctionTool
 from google.adk.tools.agent_tool import AgentTool
 
 from .tools import (
-    explore_career_fields_function,
     get_job_role_descriptions_function,
     ingest_jobs_from_adzuna,
 )
@@ -32,7 +31,6 @@ career_guidance_agent = LlmAgent(
     description="A smart career coach that can explore job fields, find job descriptions, and suggest career advancements using real-time job data.",
     instruction=CAREER_GUIDANCE_PROMPT,
     tools=[
-        FunctionTool(func=explore_career_fields_function),
         FunctionTool(func=get_job_role_descriptions_function),
         FunctionTool(func=ingest_jobs_from_adzuna),
         AgentTool(agent=title_variants_agent),

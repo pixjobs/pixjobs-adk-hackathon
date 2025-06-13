@@ -11,7 +11,6 @@ from ..prompt import (
 )
 from ..tools.career_tools import (
     get_job_role_descriptions_function,
-    explore_career_fields_function,
 )
 
 # Sub-agent to recommend beginner-friendly job titles
@@ -62,6 +61,5 @@ entry_level_agent = LlmAgent(
         LoggingAgentTool(agent=job_overview_agent),
         LoggingAgentTool(agent=entry_motivation_agent),
         get_job_role_descriptions_function,
-        explore_career_fields_function,
     ]
 )
