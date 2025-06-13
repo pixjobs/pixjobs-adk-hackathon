@@ -1,8 +1,6 @@
 import logging
 from google.adk.agents import Agent
 from . import prompt
-from .sub_agents.profile_create import profile_create_agent
-from .sub_agents.contact_block_create import contact_block_create_agent
 from .sub_agents.career_guidance import career_guidance_agent
 from utils.env import load_env, get_model
 from utils.tracing import init_tracer, get_langfuse, langfuse_span
@@ -38,8 +36,6 @@ def build_root_agent(use_traced_root_class: bool = True):
     agent_name = "workmatch_coordinator"
     description = "Your Workmatch assistant for helping you with your career journey. Let's make this part of your job search easy and engaging!"
     tools = [
-        TracedAgentTool(agent=profile_create_agent),
-        TracedAgentTool(agent=contact_block_create_agent),
         TracedAgentTool(agent=career_guidance_agent),
     ]
     agent_args = {
