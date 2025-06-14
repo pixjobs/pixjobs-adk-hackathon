@@ -1,6 +1,6 @@
 from google.adk.agents import LlmAgent
 from utils.env import get_model
-from utils.agent_tool_logger import LoggingAgentTool
+from utils.traced_tools import TracedAgentTool  
 
 from ..prompt import (
     ENTRY_LEVEL_PROMPT,
@@ -49,17 +49,17 @@ entry_motivation_agent = LlmAgent(
     tools=[]
 )
 
-# Main entry-level agent with event-logging tools
+# Main entry-level agent with traced tools
 entry_level_agent = LlmAgent(
     name="entry_level_agent",
     model=get_model(),
     description="Helps users explore beginner-friendly job roles, required skills, and job content while staying motivated.",
     instruction=ENTRY_LEVEL_PROMPT,
     tools=[
-        LoggingAgentTool(agent=starter_titles_agent),
-        LoggingAgentTool(agent=beginner_skills_agent),
-        LoggingAgentTool(agent=job_overview_agent),
-        LoggingAgentTool(agent=entry_motivation_agent),
-        get_job_role_descriptions_function,
+        TracedAgentTool(agent=starter_titles_agent),
+        TracedAgentTool(agent=beginner_skills_agent),
+        TracedAgentTool(agent=job_overview_agent),
+        TracedAgentTool(agent=entry_motivation_agent),
+        get_job_role_descriptions_function, 
     ]
 )

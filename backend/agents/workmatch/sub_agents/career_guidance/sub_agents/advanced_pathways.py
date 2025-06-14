@@ -1,6 +1,6 @@
 from google.adk.agents import LlmAgent
 from utils.env import get_model
-from utils.agent_tool_logger import LoggingAgentTool
+from utils.traced_tools import TracedAgentTool
 
 from ..prompt import (
     ADVANCED_PATHWAYS_PROMPT,
@@ -69,18 +69,18 @@ certification_agent = LlmAgent(
     tools=[]
 )
 
-# Main advanced pathways agent with event-logged tools
+# Main advanced pathways agent with traced tools
 advanced_pathways_agent = LlmAgent(
     name="advanced_pathways_agent",
     model=get_model(),
     description="Guides users in career advancement, promotions, and future planning.",
     instruction=ADVANCED_PATHWAYS_PROMPT,
     tools=[
-        LoggingAgentTool(agent=next_level_roles_agent),
-        LoggingAgentTool(agent=skill_suggestions_agent),
-        LoggingAgentTool(agent=leadership_agent),
-        LoggingAgentTool(agent=lateral_pivot_agent),
-        LoggingAgentTool(agent=certification_agent),
-        get_job_role_descriptions_function,
+        TracedAgentTool(agent=next_level_roles_agent),
+        TracedAgentTool(agent=skill_suggestions_agent),
+        TracedAgentTool(agent=leadership_agent),
+        TracedAgentTool(agent=lateral_pivot_agent),
+        TracedAgentTool(agent=certification_agent),
+        get_job_role_descriptions_function,  # Function-based tool (tracing not needed here)
     ]
 )
