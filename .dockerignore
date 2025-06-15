@@ -1,0 +1,37 @@
+# Bytecode and cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtualenv
+.venv/
+env/
+venv/
+ENV/
+*.egg-info/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Logs and temp
+*.log
+*.tmp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Node stuff (if any frontend is nearby)
+node_modules/
+
+# Secrets (if accidentally present)
+*.env
+.env*
