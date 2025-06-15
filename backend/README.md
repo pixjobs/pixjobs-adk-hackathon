@@ -2,12 +2,11 @@
 
 To run the ADK Web interface locally within this folder (/backend), use:
 
-PYTHONPATH=. adk web --host 0.0.0.0 --port 8000 agents
+adk web --host 0.0.0.0 --port 8000
 
 Notes:
 
 - ADK Web does not auto-reload on file changes. (See issue #102)
-- Ensure your agents and relative imports are correct — ADK will throw errors like “module not found” or “root_agent not defined” if the structure is incorrect.
 
 🔐 Environment Setup (GCP Secret Manager)
 
