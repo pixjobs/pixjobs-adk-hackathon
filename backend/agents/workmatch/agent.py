@@ -2,9 +2,9 @@ import logging
 from google.adk.agents import Agent
 from . import prompt
 from .sub_agents.career_guidance import career_guidance_agent
-from utils.env import load_env, get_model
-from utils.tracing import init_tracer, get_langfuse, langfuse_span
-from utils.traced_tools import TracedAgentTool
+from workmatch.utils.env import load_env, get_model
+from workmatch.utils.tracing import init_tracer, get_langfuse, langfuse_span
+from workmatch.utils.traced_tools import TracedAgentTool
 
 logger = logging.getLogger(__name__)
 

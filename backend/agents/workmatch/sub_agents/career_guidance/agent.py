@@ -3,8 +3,9 @@ import logging
 from typing import List, Dict, Any, Optional
 
 from google.adk.agents import LlmAgent
-from utils.env import get_model
-from utils.traced_tools import TracedAgentTool, TracedFunctionTool
+from workmatch.utils.env import get_model
+from workmatch.utils.traced_tools import TracedAgentTool, TracedFunctionTool
+
 from .tools import (
     get_job_role_descriptions_function,
     ingest_jobs_from_adzuna,

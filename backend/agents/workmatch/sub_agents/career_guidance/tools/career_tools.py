@@ -1,12 +1,12 @@
 import logging
 from typing import List, Dict, Any, Optional
 
-from utils.adzuna import adzuna_api
-from utils.env import get_model # Assuming this is for your embedding model setup
-from utils.firestore_helpers import (
+from workmatch.utils.adzuna import adzuna_api
+from workmatch.utils.env import get_model # Assuming this is for your embedding model setup
+from workmatch.utils.firestore_helpers import (
     upsert_jobs_metadata_bulk, get_jobs_by_ids, compute_embedding
 )
-from utils.pinecone_helpers import (
+from workmatch.utils.pinecone_helpers import (
     get_index, upsert_vectors, query_vectors
 )
 

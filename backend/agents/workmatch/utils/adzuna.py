@@ -1,7 +1,7 @@
 import os
 import requests
 from typing import Optional
-from utils.env import load_env
+from workmatch.utils.env import load_env
 
 load_env()
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")

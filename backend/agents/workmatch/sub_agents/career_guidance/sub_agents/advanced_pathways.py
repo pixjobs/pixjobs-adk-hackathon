@@ -1,6 +1,6 @@
 from google.adk.agents import LlmAgent
-from utils.env import get_model
-from utils.traced_tools import TracedAgentTool
+from workmatch.utils.env import get_model
+from workmatch.utils.traced_tools import TracedAgentTool
 
 from ..prompt import (
     ADVANCED_PATHWAYS_PROMPT,
@@ -81,6 +81,6 @@ advanced_pathways_agent = LlmAgent(
         TracedAgentTool(agent=leadership_agent),
         TracedAgentTool(agent=lateral_pivot_agent),
         TracedAgentTool(agent=certification_agent),
-        get_job_role_descriptions_function,  # Function-based tool (tracing not needed here)
+        get_job_role_descriptions_function, 
     ]
 )
