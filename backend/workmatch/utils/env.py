@@ -18,7 +18,6 @@ DEFAULT_SECRET_MAP = {
     "LANGFUSE_PUBLIC_KEY": "langfuse-public-key",
     "ADZUNA_APP_ID": "adzuna-app-id",
     "ADZUNA_APP_KEY": "adzuna-app-key",
-    "PINECONE_API_KEY": "pinecone-api-key",
 }
 
 def load_env(project_id: str = "workmatch-hackathon", secret_map: dict = None):

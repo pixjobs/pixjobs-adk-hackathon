@@ -50,7 +50,6 @@ This modular design supports contextual, zero-friction interactions — each use
 - **Gemini 2.0 Flash** as fallback
 - **Google Cloud Run** for backend orchestration
 - **Google Secret Manager** for secure API key handling
-- **Pinecone** for job title embedding and vector-based discovery
 - **React + TypeScript frontend** for chat UI
 
 Agents are wrapped with custom `TracedAgentTool` and `TracedFunctionTool` classes for logging, tool visibility in ADK Web, and **Langfuse**-powered tracing.
@@ -102,17 +101,18 @@ This project was accelerated using LLMs for tasks such as architecture drafting,
 ---
 
 ## 🧪 Running the Project
-WorkMatch currently runs through the ADK Web interface in the /backend folder.
 
-If you're looking to test or extend the agent workflows locally, please refer to /backend/README.md for full setup and run instructions — including:
+WorkMatch can be deployed as a backend service to **Google Cloud Run**, providing a scalable and accessible way to interact with the agent system.
 
-How to launch ADK Web
+Alternatively, for local development, testing, and exploring agent workflows, you can run WorkMatch using the **ADK Web interface** from the `/backend` folder.
 
-Required Google Cloud Secret Manager setup
+**For comprehensive instructions on both deployment to Google Cloud Run and running locally, please refer to the detailed guide in `/backend/README.md`.**
 
-Vertex AI + Pinecone integration details
+This guide covers:
 
-This structure allows future packaging of the backend into a deployable service while keeping development flows modular and manageable.
+*   **Deploying to Google Cloud Run**
+*   How to launch ADK Web locally
+*   Required Google Cloud Secret Manager setup for environment variables
+*   Vertex AI and other integration details
 
-
-
+This structure allows the backend to be packaged as a deployable service while keeping development flows modular and manageable.

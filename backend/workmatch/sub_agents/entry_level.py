@@ -1,6 +1,7 @@
 from google.adk.agents import LlmAgent
 from workmatch.utils.env import get_model
 from workmatch.utils.traced_tools import TracedAgentTool  
+from .expanded_insights import expanded_insights_agent
 
 from ..prompt import (
     ENTRY_LEVEL_PROMPT,
@@ -8,9 +9,6 @@ from ..prompt import (
     BEGINNER_SKILLS_PROMPT,
     JOB_OVERVIEW_PROMPT,
     ENTRY_MOTIVATION_PROMPT,
-)
-from ..tools.career_tools import (
-    get_job_role_descriptions_function,
 )
 
 # Sub-agent to recommend beginner-friendly job titles
@@ -60,6 +58,6 @@ entry_level_agent = LlmAgent(
         TracedAgentTool(agent=beginner_skills_agent),
         TracedAgentTool(agent=job_overview_agent),
         TracedAgentTool(agent=entry_motivation_agent),
-        get_job_role_descriptions_function, 
+        TracedAgentTool(agent=expanded_insights_agent),
     ]
 )

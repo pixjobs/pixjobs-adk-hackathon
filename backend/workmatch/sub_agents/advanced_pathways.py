@@ -1,6 +1,7 @@
 from google.adk.agents import LlmAgent
 from workmatch.utils.env import get_model
 from workmatch.utils.traced_tools import TracedAgentTool
+from .expanded_insights import expanded_insights_agent
 
 from ..prompt import (
     ADVANCED_PATHWAYS_PROMPT,
@@ -10,9 +11,6 @@ from ..prompt import (
     LATERAL_PIVOT_PROMPT,
     CERTIFICATION_PROMPT,
     JOB_TITLE_EXPANSION_PROMPT,
-)
-from ..tools.career_tools import (
-    get_job_role_descriptions_function,
 )
 
 # Sub-agent to suggest related job titles for fallback or exploration
@@ -81,6 +79,6 @@ advanced_pathways_agent = LlmAgent(
         TracedAgentTool(agent=leadership_agent),
         TracedAgentTool(agent=lateral_pivot_agent),
         TracedAgentTool(agent=certification_agent),
-        get_job_role_descriptions_function, 
+        TracedAgentTool(agent=expanded_insights_agent),
     ]
 )
