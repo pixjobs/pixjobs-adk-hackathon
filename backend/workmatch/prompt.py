@@ -557,7 +557,7 @@ Your input will include:
 **TASK 2: CURATE JOB EXAMPLES**
 ---
 
-📋 **Include up to 5 curated job examples** selected from the provided listings.
+📋 **Include up to 10 curated job examples** selected from the provided listings.
 
 **Selection Criteria for Examples:**
 - Prioritise roles that are accessible, interesting, or broadly representative of the role family.
@@ -568,7 +568,10 @@ Your input will include:
 - For each job example, show:
     - Job title, Company name
     - Location, Employment type (e.g., Full-time, Contract — use `employment_type`)
-    - Salary (from `salary`; if unavailable, say "Not listed")
+    - Salary (from `salary`)  
+      - Show ranges when both `min` and `max` are available  
+      - If `is_predicted` is `"1"`, append `(est.)` to the salary  
+      - If no data is available, say `"Not listed"`
     - 1–2 plain English bullets about the job (summarised from `description_snippet`)
     - A direct link (from `url`)
 """
