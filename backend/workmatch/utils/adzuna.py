@@ -1,11 +1,7 @@
 import os
 import requests
-from typing import Optional
-from workmatch.utils.env import load_env
+from typing import Optional, List, Dict, Any
 
-load_env()
-ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
-ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
 ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs"
 
 class AdzunaAPI:
@@ -15,7 +11,7 @@ class AdzunaAPI:
         self.app_id = app_id
         self.app_key = app_key
 
-    def _get(self, url: str, params: dict = None) -> dict:
+    def _get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         default_params = {"app_id": self.app_id, "app_key": self.app_key}
         request_params = {**default_params, **(params or {})}
         try:
@@ -23,7 +19,11 @@ class AdzunaAPI:
             r.raise_for_status()
             return r.json()
         except requests.exceptions.RequestException as e:
-            return {"error": str(e)}
+            print(f"[AdzunaAPI] Request error: {e}")
+            return {"error": str(e), "results": []}
+        except ValueError as e:
+            print(f"[AdzunaAPI] JSON decode error: {e}")
+            return {"error": f"Failed to decode JSON: {e}", "results": []}
 
     def search_jobs(
         self,
@@ -33,44 +33,58 @@ class AdzunaAPI:
         salary_min: Optional[int] = None,
         location: Optional[str] = None,
         category: Optional[str] = None,
-        what_or: Optional[str] = None,
         employment_type: Optional[str] = None,
-        max_pages: int = 3  # ✅ new
-    ) -> dict:
-        all_results = []
+        max_pages: int = 3
+    ) -> Dict[str, Any]:
+        all_results: List[Dict[str, Any]] = []
         seen_ids = set()
-        per_page = min(results_limit, 50)
+        results_per_page = 10
         page = 1
-    
+
         while len(all_results) < results_limit and page <= max_pages:
             url = f"{ADZUNA_BASE_URL}/{country}/search/{page}"
-            params = {
+            api_params: Dict[str, Any] = {
                 "what": what,
-                "results_per_page": per_page,
-                "app_id": self.app_id,
-                "app_key": self.app_key,
+                "results_per_page": results_per_page,
             }
-            if what_or:    params["what_or"] = what_or
-            if salary_min: params["salary_min"] = salary_min
-            if location:   params["where"] = location
-            if category:   params["category"] = category
-            if employment_type in ['permanent', 'contract']:
-                params["contract_type"] = employment_type
-    
-            response = self._get(url, params)
+
+            if salary_min:
+                api_params["salary_min"] = salary_min
+            if location:
+                api_params["where"] = location
+            if category:
+                api_params["category"] = category
+            if employment_type:
+                valid_types = {"full_time", "part_time", "contract", "permanent"}
+                if employment_type in valid_types:
+                    api_params[employment_type] = 1
+                else:
+                    print(f"[AdzunaAPI] Warning: Invalid employment_type '{employment_type}'")
+
+            response = self._get(url, api_params)
+
+            if "error" in response and response.get("error"):
+                print(f"[AdzunaAPI] Error on page {page}: {response['error']}")
+                if not response.get("results"):
+                    break
+
             page_results = response.get("results", [])
-    
+            if not page_results:
+                break
+
             for job in page_results:
+                if len(all_results) >= results_limit:
+                    break
                 job_id = job.get("canonical_id") or job.get("id")
                 if job_id and job_id not in seen_ids:
                     all_results.append(job)
                     seen_ids.add(job_id)
-    
-            if not page_results:
-                break
-    
+
             page += 1
-    
+
         return {"results": all_results[:results_limit]}
 
-adzuna_api = AdzunaAPI(ADZUNA_APP_ID, ADZUNA_APP_KEY)
+def get_adzuna_api() -> AdzunaAPI:
+    app_id = os.getenv("ADZUNA_APP_ID")
+    app_key = os.getenv("ADZUNA_APP_KEY")
+    return AdzunaAPI(app_id, app_key)
