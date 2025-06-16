@@ -117,36 +117,6 @@ async def _search_jobs_with_backoff(
         logger.error(f"[Search] Error during job search: {e}", exc_info=True)
         return []
 
-async def get_job_role_descriptions_function(
-    job_title: str,
-    country_code: str = "gb",
-    location: Optional[str] = None,
-    salary_min: Optional[int] = None,
-    employment_type: Optional[str] = None,
-    expanded_titles: Optional[List[str]] = None
-) -> dict:
-    logger.info(f"[Tool] get_job_role_descriptions: '{job_title}'")
-
-    country_code = country_code.lower()
-    effective_salary = _apply_salary_threshold(job_title, salary_min, country_code)
-
-    jobs = await _search_jobs_with_backoff(
-        job_title=job_title,
-        country_code=country_code,
-        location=location,
-        salary_min=effective_salary,
-        employment_type=employment_type,
-        results_limit=50
-    )
-
-    if jobs:
-        logger.info(f"[Adzuna] Found {len(jobs)} results.")
-        _ingest_jobs_data(jobs, country_code)
-        return {"result": jobs, "count": len(jobs), "source": "adzuna"}
-
-    logger.warning(f"[Tool] No results found for '{job_title}'.")
-    return {"result": [], "count": 0, "source": "adzuna"}
-
 async def ingest_jobs_from_adzuna(
     what: str,
     country_code: str = "gb",
@@ -174,6 +144,39 @@ async def ingest_jobs_from_adzuna(
     _ingest_jobs_data(jobs, country_code)
     return {"message": f"Successfully ingested {len(jobs)} jobs for '{what}'."}
 
+async def get_job_role_descriptions_function(
+    job_title: str,
+    country_code: str = "gb",
+    location: Optional[str] = None,
+    salary_min: Optional[int] = None,
+    employment_type: Optional[str] = None,
+    expanded_titles: Optional[List[str]] = None
+) -> dict:
+    logger.info(f"[Tool] get_job_role_descriptions: '{job_title}'")
+
+    country_code = country_code.lower()
+    effective_salary = _apply_salary_threshold(job_title, salary_min, country_code)
+
+    logger.debug(f"[Tool] Using country_code='{country_code}', effective_salary='{effective_salary}'")
+
+    jobs = await _search_jobs_with_backoff(
+        job_title=job_title,
+        country_code=country_code,
+        location=location,
+        salary_min=effective_salary,
+        employment_type=employment_type,
+        results_limit=50
+    )
+
+    if jobs:
+        logger.info(f"[Adzuna] Found {len(jobs)} results for '{job_title}'")
+        _ingest_jobs_data(jobs, country_code)
+        return {"result": jobs, "count": len(jobs), "source": "adzuna"}
+
+    logger.warning(f"[Tool] No results found for '{job_title}'")
+    return {"result": [], "count": 0, "source": "adzuna"}
+
+
 async def summarise_expanded_job_roles_tool(
     job_title: str,
     expanded_titles: List[str],
@@ -185,9 +188,11 @@ async def summarise_expanded_job_roles_tool(
     country_code = country_code.lower()
     all_titles = [job_title] + expanded_titles
 
+    logger.info(f"[Tool] Running summarise_expanded_job_roles_tool for {len(all_titles)} titles.")
+
     async def fetch_title_data(title: str):
-        logger.info(f"[Tool] Searching listings for variant: '{title}'")
-        return await get_job_role_descriptions_function(
+        logger.info(f"[Tool] Fetching jobs for: '{title}'")
+        res = await get_job_role_descriptions_function(
             job_title=title,
             country_code=country_code,
             location=location,
@@ -195,6 +200,8 @@ async def summarise_expanded_job_roles_tool(
             employment_type=employment_type,
             expanded_titles=[]
         )
+        logger.debug(f"[Tool] Got {res.get('count', 0)} results for '{title}'")
+        return res
 
     results = await asyncio.gather(*(fetch_title_data(title) for title in all_titles))
 
@@ -205,6 +212,8 @@ async def summarise_expanded_job_roles_tool(
     }
 
     all_combined = list(chain.from_iterable(title_listing_map.values()))
+    logger.info(f"[Tool] Total combined listings: {len(all_combined)}")
+
     formatted_combined = _format_jobs_for_output(all_combined, limit=10)
 
     return {
