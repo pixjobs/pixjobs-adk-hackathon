@@ -49,23 +49,15 @@ Ensure your service account or Cloud Shell user has the following roles:
 
 Use the ADK CLI to deploy WorkMatch directly to Google Cloud Run.
 
-Set environment variables:
-
-    export GOOGLE_CLOUD_PROJECT="workmatch-hackathon"
-    export GOOGLE_CLOUD_LOCATION="europe-west2"
-    export AGENT_PATH="./backend"
-    export SERVICE_NAME="workmatch"
-    export APP_NAME="workmatch"
-
 Deploy with UI enabled:
 
     adk deploy cloud_run \
-        --project=$GOOGLE_CLOUD_PROJECT \
-        --region=$GOOGLE_CLOUD_LOCATION \
-        --service_name=$SERVICE_NAME \
-        --app_name=$APP_NAME \
-        --with_ui \
-        $AGENT_PATH
+      --project=workmatch-hackathon \
+      --region=europe-west2 \
+      --service_name=workmatch \
+      --app_name=workmatch \
+      --with_ui \
+      ./workmatch
 
 🙅‍♂️ Common Errors
 
