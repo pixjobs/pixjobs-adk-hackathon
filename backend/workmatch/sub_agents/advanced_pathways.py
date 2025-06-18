@@ -1,4 +1,5 @@
 from google.adk.agents import LlmAgent
+from google.adk.tools import google_search
 from workmatch.utils.env import get_model
 from workmatch.utils.traced_tools import TracedAgentTool
 from .expanded_insights import expanded_insights_agent
@@ -68,13 +69,13 @@ certification_agent = LlmAgent(
     tools=[]
 )
 
-# Sub-agent to provide a networking strategy
+# Sub-agent to provide a networking strategy (with GoogleSearch)
 networking_agent = LlmAgent(
     name="networking_agent",
     model=get_model(),
     description="Provides targeted networking strategies, communities, and resources for advancing career goals.",
     instruction=NETWORKING_PROMPT,
-    tools=[]
+    tools=[google_search],
 )
 
 # Main advanced pathways agent with traced tools

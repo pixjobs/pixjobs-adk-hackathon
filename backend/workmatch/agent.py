@@ -1,7 +1,7 @@
 import logging
 from google.adk.agents import LlmAgent 
 from workmatch.utils.env import load_env, get_model
-from workmatch.utils.traced_tools import TracedAgentTool, TracedFunctionTool 
+from workmatch.utils.traced_tools import TracedAgentTool
 from workmatch.utils.tracing import langfuse_span, get_langfuse, init_tracer
 
 from .sub_agents import (
