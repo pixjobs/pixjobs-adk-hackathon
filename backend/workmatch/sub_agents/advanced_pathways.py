@@ -11,6 +11,7 @@ from ..prompt import (
     LATERAL_PIVOT_PROMPT,
     CERTIFICATION_PROMPT,
     JOB_TITLE_EXPANSION_PROMPT,
+    NETWORKING_PROMPT,
 )
 
 # Sub-agent to suggest related job titles for fallback or exploration
@@ -67,6 +68,15 @@ certification_agent = LlmAgent(
     tools=[]
 )
 
+# Sub-agent to provide a networking strategy
+networking_agent = LlmAgent(
+    name="networking_agent",
+    model=get_model(),
+    description="Provides targeted networking strategies, communities, and resources for advancing career goals.",
+    instruction=NETWORKING_PROMPT,
+    tools=[]
+)
+
 # Main advanced pathways agent with traced tools
 advanced_pathways_agent = LlmAgent(
     name="advanced_pathways_agent",
@@ -80,5 +90,6 @@ advanced_pathways_agent = LlmAgent(
         TracedAgentTool(agent=lateral_pivot_agent),
         TracedAgentTool(agent=certification_agent),
         TracedAgentTool(agent=expanded_insights_agent),
+        TracedAgentTool(agent=networking_agent),
     ]
 )
