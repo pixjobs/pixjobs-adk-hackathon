@@ -64,7 +64,7 @@ class AdzunaAPI:
             "location": job.get("location", {}).get("display_name", "N/A"),
             "employment_type": employment_type,
             "salary": salary_str,
-            "description_snippet": job.get("description", "")[:300].strip() + "...",
+            "description_snippet": job.get("description", "")[:150].strip() + "...",
             "url": job.get("redirect_url"),
         }
 
