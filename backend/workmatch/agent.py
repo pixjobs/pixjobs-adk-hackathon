@@ -52,12 +52,9 @@ root_agent = TracedWorkmatchAgent(
     tools=[
         TracedAgentTool(agent=title_variants_agent),     
         TracedAgentTool(agent=expanded_insights_agent), 
+        TracedAgentTool(agent=entry_level_agent),
+        TracedAgentTool(agent=advanced_pathways_agent)
     ],
 )
-
-root_agent.sub_agents = [
-    entry_level_agent,
-    advanced_pathways_agent,
-]
 
 agent = root_agent
