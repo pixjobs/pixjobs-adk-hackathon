@@ -54,7 +54,7 @@ def load_env(project_id: str = "workmatch-hackathon", secret_map: dict = None):
             logger.warning("[env] Langfuse enabled but keys are missing.")
 
 @lru_cache(maxsize=1)
-def get_model(default: str = "gemini-2.0-flash") -> str:
+def get_model(default: str = "gemini-2.5-flash") -> str:
     """
     Memoized getter for Gemini model name from environment, fallback to default.
     Used for ADK (expects string).

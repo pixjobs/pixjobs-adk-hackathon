@@ -45,17 +45,18 @@ class AdzunaAPI:
             salary_str = f"£{salary_min:,} - £{salary_max:,}"
         elif salary_min:
             salary_str = f"From £{salary_min:,}"
-        
+
         if is_predicted and salary_str != "Not listed":
             salary_str += " (est.)"
 
         employment_type = "Permanent"
-        if job.get('contract_time') == 'contract':
+        ct = job.get('contract_time')
+        if ct == 'contract':
             employment_type = "Contract"
-        elif job.get('contract_time') == 'part_time':
+        elif ct == 'part_time':
             employment_type = "Part-time"
-        elif job.get('contract_time') == 'full_time':
-             employment_type = "Full-time"
+        elif ct == 'full_time':
+            employment_type = "Full-time"
 
         return {
             "id": job.get("id"),
@@ -72,16 +73,20 @@ class AdzunaAPI:
         self,
         what: str,
         country: str = "gb",
+        page: int = 1,                         # ← new
         results_limit: int = 5,
         salary_min: Optional[int] = None,
         location: Optional[str] = None,
         employment_type: Optional[str] = None,
+        freshness_days: Optional[int] = None,
+        employer: Optional[str] = None,        # ← filter by employer
     ) -> Dict[str, List[JobListing]]:
         """
-        Searches for jobs and returns a dictionary containing a list of clean, 
+        Searches for jobs and returns a dictionary containing a list of clean,
         distilled job listings ready for LLM consumption.
         """
-        url = f"{ADZUNA_BASE_URL}/{country}/search/1"
+        # interpolate `page` into the path
+        url = f"{ADZUNA_BASE_URL}/{country}/search/{page}"
         api_params: Dict[str, Any] = {
             "what": what,
             "results_per_page": results_limit,
@@ -90,14 +95,17 @@ class AdzunaAPI:
             api_params["salary_min"] = salary_min
         if location:
             api_params["where"] = location
-        if employment_type and employment_type in {"full_time", "part_time", "contract", "permanent"}:
-             api_params[f"{employment_type}"] = 1
-        
+        if employment_type in {"full_time", "part_time", "contract", "permanent"}:
+            api_params[employment_type] = 1
+        if freshness_days is not None:
+            api_params["max_days_old"] = freshness_days
+        if employer:
+            api_params["company"] = employer
+
         response = self._get(url, api_params)
         raw_results = response.get("results", [])
-
         distilled_results = [self._format_job_listing(job) for job in raw_results]
-        
+
         return {"results": distilled_results}
 
 def get_adzuna_api() -> AdzunaAPI:

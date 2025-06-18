@@ -1,49 +1,66 @@
 import logging
-from typing import List, Dict, Any, Optional
 import asyncio
+import random
 from itertools import chain
+from typing import List, Dict, Any, Optional
 
 from workmatch.utils.adzuna import get_adzuna_api, JobListing
 
 logger = logging.getLogger(__name__)
-
-HIGH_PAYING_THRESHOLDS = {
-    "gb": 60000, "us": 85000, "de": 65000, "fr": 60000,
-    "ca": 80000, "au": 90000, "in": 1500000,
-}
-DEFAULT_HIGH_PAYING_THRESHOLD = 60000
-
-def _apply_salary_threshold(label: str, base: Optional[int], country_code: str) -> Optional[int]:
-    if "high paying" in label.lower():
-        threshold = HIGH_PAYING_THRESHOLDS.get(country_code, DEFAULT_HIGH_PAYING_THRESHOLD)
-        return max(base or 0, threshold)
-    return base
 
 async def get_job_listings_for_title(
     job_title: str,
     country_code: str,
     location: Optional[str],
     salary_min: Optional[int],
-    employment_type: Optional[str]
+    employment_type: Optional[str],
+    results_offset: Optional[int] = None,    # backwards-compatible offset
+    freshness_days: Optional[int] = 3,       # Default freshness to 3 days
+    employer: Optional[str] = None,
 ) -> List[JobListing]:
     """
     Optimized function to fetch a small, clean list of jobs for a single title.
+    Supports both 'results_offset' (legacy) and 'page' (new).
     """
     try:
         adzuna_api = get_adzuna_api()
-        # Fetch a very small number of jobs to keep it fast
+
+        # Determine results_limit and override freshness if filtering by employer
+        if employer:
+            freshness_days = None
+            results_limit = 20
+        else:
+            results_limit = 10
+
+        # Calculate page number from results_offset (legacy) or default to 1
+        if results_offset is not None:
+            page = (results_offset // results_limit) + 1
+        else:
+            page = 1
+
         response = adzuna_api.search_jobs(
             what=job_title,
             country=country_code,
+            page=page,
+            results_limit=results_limit,
             location=location,
             salary_min=salary_min,
             employment_type=employment_type,
-            results_limit=3
+            freshness_days=freshness_days,
+            employer=employer,
         )
-        return response.get("results", [])
+        listings = response.get("results", [])
+
+        # Smart randomization: shuffle per-title if no specific employer
+        if listings and not employer:
+            random.shuffle(listings)
+
+        return listings
+
     except Exception as e:
         logger.error(f"[Search] Error searching for '{job_title}': {e}", exc_info=True)
         return []
+
 
 async def summarise_expanded_job_roles_tool(
     job_title: str,
@@ -51,50 +68,77 @@ async def summarise_expanded_job_roles_tool(
     country_code: str = "gb",
     location: Optional[str] = None,
     salary_min: Optional[int] = None,
-    employment_type: Optional[str] = None
+    employment_type: Optional[str] = None,
+    results_offset: Optional[int] = None,    # backwards-compatible offset
+    freshness_days: Optional[int] = 3,       # Default to 3-day freshness
+    employer: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    A high-speed tool that fetches and synthesizes job data for multiple related titles.
-    It relies on a distilled Adzuna client and returns a structured, backwards-compatible output.
+    A high-speed tool that fetches and synthesizes job data for
+    multiple related titles. Backwards-compatible via results_offset,
+    uses path-based paging and smart randomization.
     """
     country_code = country_code.lower()
-    all_titles_to_search = [job_title] + expanded_titles
-    logger.info(f"[Tool] Running high-speed search for {len(all_titles_to_search)} titles.")
+    all_titles = [job_title] + expanded_titles
 
-    effective_salary = _apply_salary_threshold(job_title, salary_min, country_code)
+    # Legacy offset → page
+    # Use same results_limit logic as in get_job_listings_for_title
+    if employer:
+        per_title_limit = 20
+    else:
+        per_title_limit = 10
 
-    async def fetch_and_log(title: str):
+    if results_offset is not None:
+        page = (results_offset // per_title_limit) + 1
+    else:
+        page = 1
+
+    logger.info(f"[Tool] Searching {len(all_titles)} titles "
+                f"(page={page}, freshness_days={freshness_days})")
+
+    async def fetch(title: str):
         return await get_job_listings_for_title(
             job_title=title,
             country_code=country_code,
             location=location,
-            salary_min=effective_salary,
-            employment_type=employment_type
+            salary_min=salary_min,
+            employment_type=employment_type,
+            results_offset=results_offset,
+            freshness_days=freshness_days,
+            employer=employer,
         )
 
-    # Concurrently fetch clean, distilled job listings for all titles
-    all_results = await asyncio.gather(*(fetch_and_log(title) for title in all_titles_to_search))
+    # Optionally randomize the order of titles searched for extra variety
+    titles_to_search = list(all_titles)
+    if not employer:
+        random.shuffle(titles_to_search)
 
-    # Map titles to their clean job listings
+    # Fetch concurrently
+    all_results = await asyncio.gather(*(fetch(t) for t in titles_to_search))
+
+    # Build mapping and combine
     listings_by_title = {
-        title: listings
-        for title, listings in zip(all_titles_to_search, all_results)
-        if listings
+        title: results
+        for title, results in zip(titles_to_search, all_results)
+        if results
     }
+    combined = list(chain.from_iterable(listings_by_title.values()))
 
-    # Combine all found listings into a single list
-    all_combined_listings = list(chain.from_iterable(listings_by_title.values()))
+    # Final shuffle of combined list if no employer filter
+    if not employer:
+        random.shuffle(combined)
 
-    # Ensure a consistent limit for the final combined output
-    final_listings_sample = all_combined_listings[:10]
+    # Take first 10 as sample
+    sample = combined[:10]
 
-    logger.info(f"[Tool] Completed search. Found {len(all_combined_listings)} total listings across {len(listings_by_title)} titles.")
+    logger.info(f"[Tool] Found {len(combined)} listings "
+                f"across {len(listings_by_title)} titles.")
 
-    # Return the data in the exact same structure as before for backwards compatibility
     return {
         "job_title": job_title,
         "listings_by_title": listings_by_title,
-        "all_listings": final_listings_sample,
+        "all_listings": sample,
         "total_titles_found": len(listings_by_title),
-        "total_listings_found": len(all_combined_listings)
+        "total_listings_found": len(combined),
+        "page": page,
     }

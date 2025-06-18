@@ -49,8 +49,7 @@ This modular design supports contextual, zero-friction interactions — each use
 ## ⚙️ Technologies Used
 
 * **Agent Development Kit (Python)**
-* **Gemini 2.5 Pro** (Set via the Secret Manager)
-* **Gemini 2.0 Flash** as fallback
+* **Gemini 2.5 Flash** (Set via the Secret Manager)
 * **Google Cloud Run** for backend orchestration
 * **Google Secret Manager** for secure API key handling
 * **Langfuse** for observability and tool tracing
