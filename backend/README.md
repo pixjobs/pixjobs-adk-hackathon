@@ -85,3 +85,70 @@ Once deployed, you'll receive a public URL like:
     https://workmatch-abc123xyz-ew.a.run.app
 
 Visit this in your browser to access the WorkMatch agent with the ADK dev UI.
+
+🌐 **Using WorkMatch as a Web API for React or External Clients**
+
+If you'd like to deploy WorkMatch as a **server-only backend** (without the ADK Web UI) and connect it to a frontend like React:
+
+### ✅ Deployment (API-only mode)
+
+Use this CLI command to deploy the service without the interactive UI:
+
+
+adk deploy cloud_run \
+  --project=workmatch-hackathon \
+  --region=europe-west2 \
+  --service_name=workmatch-api \
+  --app_name=workmatch \
+  ./workmatch
+
+
+This will deploy a Cloud Run service that accepts POST requests to:
+
+https://workmatch-api-xxxxxx-ew.a.run.app/adk/invoke
+
+Authentication is enforced by default.
+
+---
+
+### 🔐 Authenticating API Requests
+
+To call the endpoint from your React app or other frontend, you’ll need to configure identity-based access:
+
+1. **Create a dedicated service account for frontend access (optional but recommended):**
+
+
+gcloud iam service-accounts create workmatch-web-client \
+  --display-name="WorkMatch Web Client"
+
+
+2. **Grant Cloud Run Invoker permissions:**
+
+
+gcloud run services add-iam-policy-binding workmatch-api \
+  --region=europe-west2 \
+  --project=workmatch-hackathon \
+  --member="serviceAccount:workmatch-web-client@workmatch-hackathon.iam.gserviceaccount.com" \
+  --role="roles/run.invoker"
+
+
+3. **Generate and pass an ID token:**
+
+- For testing, you can run:
+
+gcloud auth print-identity-token
+
+
+- In production, you'll likely use a signed ID token from your frontend via Firebase Auth or OAuth2.
+
+4. **Make a request to the API:**
+
+
+curl -X POST \
+  -H "Authorization: Bearer YOUR_ID_TOKEN" \
+  https://workmatch-api-xxxxxx-ew.a.run.app/adk/invoke
+
+---
+s
+You can now integrate this backend API with any frontend, mobile app, or authenticated third-party system.
+
