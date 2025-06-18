@@ -1,6 +1,16 @@
 import os
 import requests
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TypedDict
+
+class JobListing(TypedDict):
+    id: str
+    title: str
+    company: str
+    location: str
+    employment_type: str
+    salary: str
+    description_snippet: str
+    url: str
 
 ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs"
 
@@ -25,64 +35,70 @@ class AdzunaAPI:
             print(f"[AdzunaAPI] JSON decode error: {e}")
             return {"error": f"Failed to decode JSON: {e}", "results": []}
 
+    def _format_job_listing(self, job: Dict[str, Any]) -> JobListing:
+        salary_min = job.get('salary_min')
+        salary_max = job.get('salary_max')
+        is_predicted = job.get('salary_is_predicted') == "1"
+        salary_str = "Not listed"
+
+        if salary_min and salary_max:
+            salary_str = f"£{salary_min:,} - £{salary_max:,}"
+        elif salary_min:
+            salary_str = f"From £{salary_min:,}"
+        
+        if is_predicted and salary_str != "Not listed":
+            salary_str += " (est.)"
+
+        employment_type = "Permanent"
+        if job.get('contract_time') == 'contract':
+            employment_type = "Contract"
+        elif job.get('contract_time') == 'part_time':
+            employment_type = "Part-time"
+        elif job.get('contract_time') == 'full_time':
+             employment_type = "Full-time"
+
+        return {
+            "id": job.get("id"),
+            "title": job.get("title"),
+            "company": job.get("company", {}).get("display_name", "N/A"),
+            "location": job.get("location", {}).get("display_name", "N/A"),
+            "employment_type": employment_type,
+            "salary": salary_str,
+            "description_snippet": job.get("description", "")[:300].strip() + "...",
+            "url": job.get("redirect_url"),
+        }
+
     def search_jobs(
         self,
         what: str,
         country: str = "gb",
-        results_limit: int = 25,
+        results_limit: int = 5,
         salary_min: Optional[int] = None,
         location: Optional[str] = None,
-        category: Optional[str] = None,
         employment_type: Optional[str] = None,
-        max_pages: int = 3
-    ) -> Dict[str, Any]:
-        all_results: List[Dict[str, Any]] = []
-        seen_ids = set()
-        results_per_page = 10
-        page = 1
+    ) -> Dict[str, List[JobListing]]:
+        """
+        Searches for jobs and returns a dictionary containing a list of clean, 
+        distilled job listings ready for LLM consumption.
+        """
+        url = f"{ADZUNA_BASE_URL}/{country}/search/1"
+        api_params: Dict[str, Any] = {
+            "what": what,
+            "results_per_page": results_limit,
+        }
+        if salary_min:
+            api_params["salary_min"] = salary_min
+        if location:
+            api_params["where"] = location
+        if employment_type and employment_type in {"full_time", "part_time", "contract", "permanent"}:
+             api_params[f"{employment_type}"] = 1
+        
+        response = self._get(url, api_params)
+        raw_results = response.get("results", [])
 
-        while len(all_results) < results_limit and page <= max_pages:
-            url = f"{ADZUNA_BASE_URL}/{country}/search/{page}"
-            api_params: Dict[str, Any] = {
-                "what": what,
-                "results_per_page": results_per_page,
-            }
-
-            if salary_min:
-                api_params["salary_min"] = salary_min
-            if location:
-                api_params["where"] = location
-            if category:
-                api_params["category"] = category
-            if employment_type:
-                valid_types = {"full_time", "part_time", "contract", "permanent"}
-                if employment_type in valid_types:
-                    api_params[employment_type] = 1
-                else:
-                    print(f"[AdzunaAPI] Warning: Invalid employment_type '{employment_type}'")
-
-            response = self._get(url, api_params)
-
-            if "error" in response and response.get("error"):
-                print(f"[AdzunaAPI] Error on page {page}: {response['error']}")
-                if not response.get("results"):
-                    break
-
-            page_results = response.get("results", [])
-            if not page_results:
-                break
-
-            for job in page_results:
-                if len(all_results) >= results_limit:
-                    break
-                job_id = job.get("canonical_id") or job.get("id")
-                if job_id and job_id not in seen_ids:
-                    all_results.append(job)
-                    seen_ids.add(job_id)
-
-            page += 1
-
-        return {"results": all_results[:results_limit]}
+        distilled_results = [self._format_job_listing(job) for job in raw_results]
+        
+        return {"results": distilled_results}
 
 def get_adzuna_api() -> AdzunaAPI:
     app_id = os.getenv("ADZUNA_APP_ID")
