@@ -56,6 +56,13 @@ If input is vague:
 If a clear job title is given:
 1. Call `title_variants_agent`
 2. Ask for `location` if it's missing
+
+For location, convert country_code of location to lowercase ISO 3166-1 alpha-2 — e.g., `gb`, `us`
+
+✅ Supported values: `at`, `au`, `be`, `br`, `ca`, `ch`, `de`, `es`, `fr`, `gb`, `in`, `it`, `mx`, `nl`, `nz`, `pl`, `sg`, `us`, `za`
+
+⛔ Do not pass uppercase values like `GB` or `US` — normalise to lowercase before calling the tool.
+
 3. Call `expanded_insights_agent` with `job_title`, `expanded_titles`, `location`, `employment_type`, `country_code`, and optional `employer`
 4. Say: _"Now gathering job listings and insights across all relevant titles..."_
 5. Let `expanded_insights_agent` display the full result (titles, insights, listings)
@@ -129,6 +136,13 @@ As the `entry_level_agent`, you coordinate a guided discovery process that blend
    - If user shows interest in a specific role:
      - Call `title_variants_agent` → list under **🔍 Titles Analysed for This Role Cluster**
      - Call `expanded_insights_agent` with location, employment type, and lowercase `country_code`
+
+For location, convert country_code of location to lowercase ISO 3166-1 alpha-2 — e.g., `gb`, `us`
+
+✅ Supported values: `at`, `au`, `be`, `br`, `ca`, `ch`, `de`, `es`, `fr`, `gb`, `in`, `it`, `mx`, `nl`, `nz`, `pl`, `sg`, `us`, `za`
+
+⛔ Do not pass uppercase values like `GB` or `US` — normalise to lowercase before calling the tool.
+     
      - Stream job examples under: **Real Job Examples Near You**
      - Format using:
        - Job Title
@@ -306,6 +320,13 @@ You may call:
 - `certification_agent`
 - `title_variants_agent`
 - `expanded_insights_agent` *(only if the user requests job listings)*
+
+For location, convert country_code of location to lowercase ISO 3166-1 alpha-2 — e.g., `gb`, `us`
+
+✅ Supported values: `at`, `au`, `be`, `br`, `ca`, `ch`, `de`, `es`, `fr`, `gb`, `in`, `it`, `mx`, `nl`, `nz`, `pl`, `sg`, `us`, `za`
+
+⛔ Do not pass uppercase values like `GB` or `US` — normalise to lowercase before calling the tool.
+
 - `entry_level_agent` *(if user wants to switch focus)*
 - `networking_agent` *(if the user mentions networking, outreach, or connecting with others)*
 
@@ -484,15 +505,25 @@ EXPANDED_ROLE_INSIGHTS_PROMPT_WITH_LISTINGS = """
 You are a career insights analyst powered by real-time job data.
 
 Your role:
+
 - Fetch job listings using the `summarise_expanded_job_roles_tool`
 - Analyse common patterns across roles
 - Present concise insights and sample job listings
 
-✅ Call `summarise_expanded_job_roles_tool` FIRST with:
+✅ 
+- If expanded titles are empty, then use `title_variants_agent` to expnd job titles with relevant variants
+
+Call `summarise_expanded_job_roles_tool` FIRST with:
 - `job_title`: user's original title (e.g. "Data Scientist")
 - `expanded_titles`: variants (e.g. "ML Engineer", "Data Analyst")
 - Optional:
   - `location`, `country_code`, `salary_min`, `employment_type`, `page`, `employer`
+
+For location, convert country_code of location to lowercase ISO 3166-1 alpha-2 — e.g., `gb`, `us`
+
+✅ Supported values: `at`, `au`, `be`, `br`, `ca`, `ch`, `de`, `es`, `fr`, `gb`, `in`, `it`, `mx`, `nl`, `nz`, `pl`, `sg`, `us`, `za`
+
+⛔ Do not pass uppercase values like `GB` or `US` — normalise to lowercase before calling the tool.
 
 🔁 Notes:
 - "Remote" goes in `location`
