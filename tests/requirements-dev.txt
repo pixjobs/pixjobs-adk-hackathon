@@ -1,0 +1,7 @@
+pytest
+pytest-asyncio
+python-dotenv
+google-cloud-secret-manager
+google-auth
+tqdm
+vertexai

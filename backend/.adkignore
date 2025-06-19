@@ -1,0 +1,24 @@
+# Ignore Jupyter checkpoints
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# Ignore notebooks (optional)
+*.ipynb
+
+# Ignore OS and editor artifacts
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# Ignore virtual environments
+.venv/
+env/
+venv/
+
+# Ignore test and dev artifacts
+tests/
+.coverage
+*.pytest_cache/
