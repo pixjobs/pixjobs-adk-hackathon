@@ -3,9 +3,9 @@ import base64
 import logging
 from functools import lru_cache
 from google.cloud import secretmanager
+from dotenv import load_dotenv
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# --- Logging setup ---
 logger = logging.getLogger(__name__)
 
 # --- Secret Manager Mappings ---
@@ -21,30 +21,37 @@ DEFAULT_SECRET_MAP = {
     "ADZUNA_APP_KEY": "adzuna-app-key",
 }
 
+_env_loaded = False
+
+
 def load_env(project_id: str = "workmatch-hackathon", secret_map: dict = None):
-    """
-    Force-load environment variables from GCP Secret Manager.
-    """
+    """Loads secrets into environment variables once per runtime."""
+    global _env_loaded
+    if _env_loaded:
+        logger.debug("[env] Already loaded; skipping.")
+        return
+
+    if os.path.exists(".env"):
+        load_dotenv()
+        logger.debug("[env] Loaded local .env file.")
+    else:
+        logger.debug("[env] No .env file found.")
+
     secret_map = secret_map or DEFAULT_SECRET_MAP
     client = secretmanager.SecretManagerServiceClient()
 
-    logger.info("[env] Loading all secrets from Secret Manager...")
-
+    logger.debug("[env] Fetching secrets from Secret Manager...")
     for env_var, secret_name in secret_map.items():
         try:
             name = f"projects/{project_id}/secrets/{secret_name}/versions/latest"
             response = client.access_secret_version(request={"name": name})
-            value = response.payload.data.decode("utf-8").strip()
-            os.environ[env_var] = value
-            logger.info(f"[env] Loaded {env_var} from Secret Manager.")
+            os.environ[env_var] = response.payload.data.decode("utf-8").strip()
+            logger.debug(f"[env] Loaded {env_var} from Secret Manager.")
         except Exception as e:
-            logger.error(f"[env] Failed to load {env_var} from secret '{secret_name}': {e}")
-            raise RuntimeError(f"Missing or inaccessible secret: {secret_name}")
+            logger.warning(f"[env] Failed to load {env_var} from '{secret_name}': {e}")
 
-    # Optional: Langfuse setup
     if os.getenv("ENABLE_LANGFUSE", "").lower() == "true":
-        pub = os.getenv("LANGFUSE_PUBLIC_KEY")
-        sec = os.getenv("LANGFUSE_SECRET_KEY")
+        pub, sec = os.getenv("LANGFUSE_PUBLIC_KEY"), os.getenv("LANGFUSE_SECRET_KEY")
         if pub and sec:
             auth = base64.b64encode(f"{pub}:{sec}".encode()).decode()
             os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {auth}"
@@ -53,12 +60,19 @@ def load_env(project_id: str = "workmatch-hackathon", secret_map: dict = None):
         else:
             logger.warning("[env] Langfuse enabled but keys are missing.")
 
+    _env_loaded = True
+
+
 @lru_cache(maxsize=1)
 def get_model(default: str = "gemini-2.5-flash") -> str:
-    """
-    Memoized getter for Gemini model name from environment, fallback to default.
-    Used for ADK (expects string).
-    """
+    """Returns Gemini model from environment or fallback."""
     model = os.getenv("GEMINI_MODEL", default)
-    logger.info(f"[env] Using Gemini model: {model}")
+    logger.debug(f"[env] Using Gemini model: {model}")
     return model
+
+
+# Safe preload (optional for ADK Web usage)
+try:
+    load_env()
+except Exception as e:
+    logger.warning(f"[env] Could not load secrets on import: {e}")

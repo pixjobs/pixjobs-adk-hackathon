@@ -38,7 +38,6 @@ You can toggle Langfuse by updating the enable-langfuse secret to "false" or rem
 Ensure your service account or Cloud Shell user has the following roles:
 - Vertex AI User
 - Secret Manager Secret Accessor
-- Cloud Datastore User (for Firestore)
 - Cloud Run Admin
 - Service Account User
 - Artifact Registry Writer

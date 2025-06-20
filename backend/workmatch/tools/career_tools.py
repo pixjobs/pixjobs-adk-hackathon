@@ -61,7 +61,6 @@ async def get_job_listings_for_title(
         logger.error(f"[Search] Error searching for '{job_title}': {e}", exc_info=True)
         return []
 
-
 async def summarise_expanded_job_roles_tool(
     job_title: str,
     expanded_titles: List[str],
@@ -81,12 +80,10 @@ async def summarise_expanded_job_roles_tool(
     country_code = country_code.lower()
     all_titles = [job_title] + expanded_titles
 
-    # Legacy offset → page
-    # Use same results_limit logic as in get_job_listings_for_title
     if employer:
-        per_title_limit = 20
-    else:
         per_title_limit = 10
+    else:
+        per_title_limit = 5
 
     if results_offset is not None:
         page = (results_offset // per_title_limit) + 1

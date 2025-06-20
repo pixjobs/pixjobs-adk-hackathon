@@ -53,7 +53,6 @@ This modular design supports contextual, zero-friction interactions — each use
 * **Google Cloud Run** for backend orchestration
 * **Google Secret Manager** for secure API key handling
 * **Langfuse** for observability and tool tracing
-* **Firestore Database** for storing of job listings for future searching and summarisation. The original implementation also included support for Pinecone vector search. However, this was removed due to to performance issues.
 
 ### 📌 Note on Frontend
 
