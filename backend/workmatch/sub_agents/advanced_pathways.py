@@ -1,5 +1,5 @@
 from google.adk.agents import LlmAgent
-from google.adk.tools import google_search
+from google.adk.tools import google_search, ParallelAgentTool
 from workmatch.utils.env import get_model
 from workmatch.utils.traced_tools import TracedAgentTool
 from .expanded_insights import expanded_insights_agent
@@ -78,18 +78,23 @@ networking_agent = LlmAgent(
     tools=[google_search],
 )
 
-# Main advanced pathways agent with traced tools
+# Main advanced pathways agent with traced & parallel tools
 advanced_pathways_agent = LlmAgent(
     name="advanced_pathways_agent",
     model=get_model(),
     description="Guides users in career advancement, promotions, and future planning.",
     instruction=ADVANCED_PATHWAYS_PROMPT,
     tools=[
-        TracedAgentTool(agent=next_level_roles_agent),
-        TracedAgentTool(agent=skill_suggestions_agent),
-        TracedAgentTool(agent=leadership_agent),
-        TracedAgentTool(agent=lateral_pivot_agent),
-        TracedAgentTool(agent=certification_agent),
+        ParallelAgentTool(
+            name="career_blueprint_bundle",
+            tools=[
+                TracedAgentTool(agent=next_level_roles_agent),
+                TracedAgentTool(agent=skill_suggestions_agent),
+                TracedAgentTool(agent=leadership_agent),
+                TracedAgentTool(agent=lateral_pivot_agent),
+                TracedAgentTool(agent=certification_agent),
+            ]
+        ),
         TracedAgentTool(agent=expanded_insights_agent),
         TracedAgentTool(agent=networking_agent),
     ]

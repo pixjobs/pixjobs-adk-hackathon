@@ -38,7 +38,7 @@ Suggest 4–6 job ideas, then ask:
 > “Want to explore one of these?”
 
 **If job title is clear**:
-1. Always call `title_variants_agent` to generate expanded titles — **show only its output**, then pause.
+1. Always call `title_variants_agent` to generate expanded titles - suppress the output and then pause.
 2. ❗Do not suggest roles, listings, or respond with markdown yet — wait until the `expanded_insights_agent` is called.
 3. Ask for `location` if missing   
 4. If `country_code` is missing, infer it from the location (e.g. “Toronto” → `ca`, “London” → `gb`)  
