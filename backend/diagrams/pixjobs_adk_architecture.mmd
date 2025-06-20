@@ -1,0 +1,71 @@
+flowchart TD
+    subgraph "User Interface Layer"
+        User["User"]:::external
+        UI["ADK Web UI / React UI"]:::external
+        User -->|Interacts| UI
+    end
+
+    UI -->|HTTP Request| Prompt["HTTP/gRPC Endpoint<br/>(prompt.py)"]:::api
+    click Prompt "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/prompt.py"
+
+    subgraph "Orchestration Layer"
+        CloudRun["Cloud Run Service"]:::cloud
+        RootAgent["Root Agent<br/>(agent.py)"]:::agent
+        click RootAgent "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/agent.py"
+        Prompt --> CloudRun
+        CloudRun --> RootAgent
+    end
+
+    subgraph "Agents Layer"
+        EntryAgent["EntryLevelAgent<br/>(entry_level.py)"]:::agent
+        click EntryAgent "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/sub_agents/entry_level.py"
+        AdvAgent["AdvancedPathwaysAgent<br/>(advanced_pathways.py)"]:::agent
+        click AdvAgent "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/sub_agents/advanced_pathways.py"
+        InsightsAgent["ExpandedInsightsAgent<br/>(expanded_insights.py)"]:::agent
+        click InsightsAgent "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/sub_agents/expanded_insights.py"
+        TitleAgent["TitleVariantsAgent<br/>(title_variants.py)"]:::agent
+        click TitleAgent "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/sub_agents/title_variants.py"
+        RootAgent --> EntryAgent
+        RootAgent --> AdvAgent
+        RootAgent --> InsightsAgent
+        RootAgent --> TitleAgent
+    end
+
+    subgraph "Tools & Utils Layer"
+        Tools["CareerTools<br/>(career_tools.py)"]:::tool
+        click Tools "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/tools/career_tools.py"
+        AdzunaUtil["Adzuna API Client<br/>(adzuna.py)"]:::util
+        click AdzunaUtil "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/utils/adzuna.py"
+        EnvUtil["Env & Secret Manager Helper<br/>(env.py)"]:::util
+        click EnvUtil "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/utils/env.py"
+        TracedTools["Traced Function & Agent Tools<br/>(traced_tools.py)"]:::util
+        click TracedTools "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/utils/traced_tools.py"
+        TracingCfg["Tracing Config<br/>(tracing.py)"]:::util
+        click TracingCfg "https://github.com/pixjobs/pixjobs-adk-hackathon/blob/main/backend/workmatch/utils/tracing.py"
+        EntryAgent --> Tools
+        AdvAgent --> Tools
+        InsightsAgent --> Tools
+        TitleAgent --> Tools
+        Tools --> AdzunaUtil
+        Tools --> EnvUtil
+        Tools --> TracedTools
+        Tools --> TracingCfg
+    end
+
+    subgraph "External & Database"
+        AdzunaAPI["Adzuna REST API"]:::external
+        SecretMgr["Google Secret Manager"]:::external
+        Langfuse["Langfuse Observability"]:::external
+        AdzunaUtil --> AdzunaAPI
+        EnvUtil --> SecretMgr
+        TracedTools --> Langfuse
+        TracingCfg --> Langfuse
+    end
+
+    classDef agent fill:#ADD8E6,stroke:#000;
+    classDef tool fill:#90EE90,stroke:#000;
+    classDef util fill:#90EE90,stroke:#000;
+    classDef external fill:#FFA500,stroke:#000;
+    classDef db fill:#FFFF00,stroke:#000;
+    classDef cloud fill:#E0E0E0,stroke:#000;
+    classDef api fill:#E0FFFF,stroke:#000;
