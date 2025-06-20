@@ -575,7 +575,7 @@ List the original title and expanded variants, each with a short (approx. 10-wor
 - **Entry Paths / Transferable Skills:** Describe common ways to enter this field.
 
 📋 **Example Jobs You Can Explore**
-*(Show up to 10 jobs from the tool's results. For each job, display the following)*
+*(Show up to 5 jobs from the tool's results. For each job, display the following)*
 
 - **[Job Title]**, 🏢 **[Company Name]**
 - 📍 [Location], 📄 [Employment Type]

@@ -28,9 +28,9 @@ async def get_job_listings_for_title(
         # Determine results_limit and override freshness if filtering by employer
         if employer:
             freshness_days = None
-            results_limit = 20
-        else:
             results_limit = 10
+        else:
+            results_limit = 5
 
         # Calculate page number from results_offset (legacy) or default to 1
         if results_offset is not None:
