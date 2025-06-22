@@ -1,0 +1,17 @@
+graph TD
+    subgraph ADVANCED_PATHWAYS_AGENT
+        F_Path[Start Advanced Flow] --> F1{Where are you in your career?}
+        F1 --> F2[User selects situation]
+        F2 --> F3{Evaluate Selection}
+        F3 -- "1–6: Plan" --> F4{Choose focus}
+        F3 -- "7: Return to main" --> B
+
+        F4 --> F5{Select Tool}
+        F5 -- "1. Career Paths" --> F5a([Call next_level_roles_agent]) --> F4
+        F5 -- "2. Skills" --> F5b([Call skill_suggestions_agent]) --> F4
+        F5 -- "3. Leadership" --> F5c([Call leadership_agent]) --> F4
+        F5 -- "4. Lateral" --> F5d([Call lateral_pivot_agent]) --> F4
+        F5 -- "5. Certifications" --> F5e([Call certification_agent]) --> F4
+        F5 -- "6. Networking" --> F5f([Call networking_agent]) --> F4
+        F5 -- "Return to main" --> B
+    end

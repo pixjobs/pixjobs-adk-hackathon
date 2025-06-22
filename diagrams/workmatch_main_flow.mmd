@@ -1,0 +1,13 @@
+graph TD
+    subgraph CAREER_GUIDANCE_AGENT
+        A[User Starts Session] --> B{Display Main Menu}
+        B --> C[User provides input]
+        C --> D{Evaluate User Intent}
+
+        D -- "1, 4, 7: Vague / Entry-level" --> E_Path
+        D -- "2, 6: Plan Skills or Career" --> F_Path
+        D -- "3: Job Title Provided" --> G_Path
+        D -- "5, 8: Motivation" --> H[Call get_motivational_quote]
+        H --> I[✨ Let me know what you'd like to do next]
+        I --> B
+    end

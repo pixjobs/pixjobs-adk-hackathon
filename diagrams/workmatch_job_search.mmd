@@ -1,0 +1,12 @@
+graph TD
+    subgraph JOB_SEARCH
+        G_Path[Start Job Search] --> G1([Call title_variants_agent])
+        G1 --> G2{Ask for location}
+        G2 --> G3([Call expanded_insights_agent])
+        G3 --> G4{Display Listings + Command Menu}
+        G4 --> G5{User Action}
+        G5 -- "Refresh / Filter" --> G3
+        G5 -- "Return to main menu" --> B
+        G5 -- "Entry-level guidance" --> E_Path
+        G5 -- "Advanced planning" --> F_Path
+    end

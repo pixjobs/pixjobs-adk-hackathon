@@ -1,0 +1,17 @@
+graph TD
+    subgraph ENTRY_LEVEL_AGENT
+        E_Path[Start Entry-Level Flow] --> E1{What's your situation?}
+        E1 --> E2[User selects option]
+        E2 --> E3{Evaluate Situation}
+        E3 -- "1–4: Explore" --> E4{Discovery Options}
+        E3 -- "5: Full career plan" --> F_Path
+        E3 -- "6: Return to main" --> B
+
+        E4 --> E5{Choose action}
+        E5 -- "1. Starter Roles" --> E5a([Call starter_titles_agent]) --> E4
+        E5 -- "2. Explain Job" --> E5b([Call job_overview_agent]) --> E4
+        E5 -- "3. Skills" --> E5c([Call beginner_skills_agent]) --> E4
+        E5 -- "4. Motivate" --> E5d([Call entry_motivation_agent]) --> E4
+        E5 -- "See Jobs" --> G_Path
+        E5 -- "Return to main" --> B
+    end
