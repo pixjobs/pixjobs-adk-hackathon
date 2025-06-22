@@ -1,4 +1,5 @@
 from google.adk.agents import LlmAgent
+from google.adk.tools import google_search
 from workmatch.utils.env import get_model
 from workmatch.utils.traced_tools import TracedAgentTool  
 from .expanded_insights import expanded_insights_agent
@@ -17,7 +18,7 @@ starter_titles_agent = LlmAgent(
     model=get_model(),
     description="Recommends beginner-friendly job titles based on a user's interests or keywords.",
     instruction=STARTER_TITLES_PROMPT,
-    tools=[]
+    tools=[google_search]  # Optional, adds real job reference
 )
 
 # Sub-agent to suggest beginner-appropriate skills
@@ -26,7 +27,7 @@ beginner_skills_agent = LlmAgent(
     model=get_model(),
     description="Suggests technical and soft skills useful for entry-level roles.",
     instruction=BEGINNER_SKILLS_PROMPT,
-    tools=[]
+    tools=[google_search]  # ✅ For finding free learning resources
 )
 
 # Sub-agent to explain job responsibilities
@@ -35,7 +36,7 @@ job_overview_agent = LlmAgent(
     model=get_model(),
     description="Provides easy-to-understand explanations of job responsibilities for entry-level roles.",
     instruction=JOB_OVERVIEW_PROMPT,
-    tools=[]
+    tools=[]  # Optional: could add search later if desired
 )
 
 # Sub-agent to provide motivational support to early-career users

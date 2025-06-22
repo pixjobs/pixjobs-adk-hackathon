@@ -18,7 +18,3 @@ langfuse
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 opentelemetry-api
-
-# Firestore
-
-google-cloud-firestore

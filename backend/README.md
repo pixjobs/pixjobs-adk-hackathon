@@ -30,7 +30,6 @@ You can toggle Langfuse by updating the enable-langfuse secret to "false" or rem
 💼 Adzuna Jobs API
 
     gcloud secrets create adzuna-app-id       --replication-policy="automatic"       --data-file=<(echo -n "YOUR_ADZUNA_APP_ID")
-
     gcloud secrets create adzuna-app-key       --replication-policy="automatic"       --data-file=<(echo -n "YOUR_ADZUNA_APP_KEY")
 
 👤 Required IAM Roles

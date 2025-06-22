@@ -10,6 +10,9 @@ from .sub_agents import (
     expanded_insights_agent, 
     title_variants_agent,   
 )
+
+from .tools.motivational_quotes_tool import get_motivational_quote
+
 from .prompt import CAREER_GUIDANCE_PROMPT 
 
 # Setup
@@ -53,7 +56,8 @@ root_agent = TracedWorkmatchAgent(
         TracedAgentTool(agent=title_variants_agent),     
         TracedAgentTool(agent=expanded_insights_agent), 
         TracedAgentTool(agent=entry_level_agent),
-        TracedAgentTool(agent=advanced_pathways_agent)
+        TracedAgentTool(agent=advanced_pathways_agent),
+        get_motivational_quote     
     ],
 )
 
