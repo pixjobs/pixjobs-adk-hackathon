@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-export default function ClientWrapper({ children }: { children: React.ReactNode }) {
+type ClientWrapperProps = {
+  children: React.ReactNode;
+};
+
+export default function ClientWrapper({ children }: ClientWrapperProps) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const updateVH = () => {
-      const vh = window.visualViewport?.height || window.innerHeight;
+      const vh = window.visualViewport?.height ?? window.innerHeight;
       document.documentElement.style.setProperty("--vh", `${vh * 0.01}px`);
     };
 
@@ -15,7 +19,9 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
     window.addEventListener("resize", updateVH);
     setHydrated(true);
 
-    return () => window.removeEventListener("resize", updateVH);
+    return () => {
+      window.removeEventListener("resize", updateVH);
+    };
   }, []);
 
   if (!hydrated) {
