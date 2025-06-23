@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --accent-color: #3b82f6;
+    --bg-primary: #0f172a;        /* slate-900 */
+    --text-primary: #cbd5e1;      /* slate-300 */
+    --border-color: #334155;      /* slate-700 */
+    --bubble-user: #2563eb;       /* blue-600 */
+    --bubble-assistant: #1e293b;  /* slate-800 */
+    --font-primary: 'Noto Sans', sans-serif;
+  }
+
+  html, body {
+    @apply bg-background text-text;
+    font-family: var(--font-primary);
+  }
+
+  /* Map utility classes to variables */
+  .bg-background {
+    background-color: var(--bg-primary);
+  }
+
+  .text-text {
+    color: var(--text-primary);
+  }
+
+  .border-border {
+    border-color: var(--border-color);
+  }
+
+  /* Smooth message fade-in */
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  /* Optional: improve scrollbars for custom-scrollbar class */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 3px;
+  }
+}
