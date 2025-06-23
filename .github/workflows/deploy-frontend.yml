@@ -1,9 +1,11 @@
-name: Deploy to Cloud Run
+name: Deploy Frontend to Cloud Run
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'frontend/**'  # Trigger only if changes occur in the frontend directory
 
 env:
   PROJECT_ID: workmatch-hackathon
@@ -13,8 +15,12 @@ env:
 
 jobs:
   deploy:
-    name: Build and Deploy to Cloud Run
+    name: Build and Deploy Frontend to Cloud Run
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend  # Set working directory to frontend
 
     steps:
       - name: ⬇️ Checkout code
